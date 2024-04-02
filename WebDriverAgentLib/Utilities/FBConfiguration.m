@@ -19,7 +19,7 @@
 #import "XCTestConfiguration.h"
 #import "XCUIApplication+FBUIInterruptions.h"
 
-static NSUInteger const DefaultStartingPort = 8100;
+static NSUInteger const DefaultStartingPort = 8101;
 static NSUInteger const DefaultMjpegServerPort = 9100;
 static NSUInteger const DefaultPortRange = 100;
 
