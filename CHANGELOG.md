@@ -1,3 +1,42 @@
+## [8.7.3](https://github.com/appium/WebDriverAgent/compare/v8.7.2...v8.7.3) (2024-06-12)
+
+### Miscellaneous Chores
+
+* **deps:** bump @appium/support from 4.5.0 to 5.0.3 ([#910](https://github.com/appium/WebDriverAgent/issues/910)) ([936005b](https://github.com/appium/WebDriverAgent/commit/936005b458e7b5b64b60d9bda37d45bb5a90e615))
+
+## [8.7.2](https://github.com/appium/WebDriverAgent/compare/v8.7.1...v8.7.2) (2024-06-04)
+
+### Miscellaneous Chores
+
+* **deps-dev:** bump sinon from 17.0.2 to 18.0.0 ([#903](https://github.com/appium/WebDriverAgent/issues/903)) ([87e4ba5](https://github.com/appium/WebDriverAgent/commit/87e4ba5ce3868d99ac889795039936be119ef87a))
+
+## [8.7.1](https://github.com/appium/WebDriverAgent/compare/v8.7.0...v8.7.1) (2024-06-04)
+
+### Miscellaneous Chores
+
+* **deps-dev:** bump semantic-release from 23.1.1 to 24.0.0 and conventional-changelog-conventionalcommits to 8.0.0 ([#908](https://github.com/appium/WebDriverAgent/issues/908)) ([26019ec](https://github.com/appium/WebDriverAgent/commit/26019eca9b7331353e26a1014bc4afcecc0450f3))
+
+## [8.7.0](https://github.com/appium/WebDriverAgent/compare/v8.6.0...v8.7.0) (2024-06-01)
+
+
+### Features
+
+* Add a setting to respect system alerts while detecting active apps ([#907](https://github.com/appium/WebDriverAgent/issues/907)) ([5c82d66](https://github.com/appium/WebDriverAgent/commit/5c82d66890b1a74f9b6f698c87590b2154a6c1bd))
+
+## [8.6.0](https://github.com/appium/WebDriverAgent/compare/v8.5.7...v8.6.0) (2024-05-17)
+
+
+### Features
+
+* support maxTypingFrequency in settings api ([#904](https://github.com/appium/WebDriverAgent/issues/904)) ([fa4776a](https://github.com/appium/WebDriverAgent/commit/fa4776a2bfa15cbec8bba35d8ed11318d9629934))
+
+## [8.5.7](https://github.com/appium/WebDriverAgent/compare/v8.5.6...v8.5.7) (2024-05-16)
+
+
+### Miscellaneous Chores
+
+* Update dev dependencies ([e49dcf2](https://github.com/appium/WebDriverAgent/commit/e49dcf2afb0a10edc7085ac56d297234c00d57b0))
+
 ## [8.5.6](https://github.com/appium/WebDriverAgent/compare/v8.5.5...v8.5.6) (2024-04-20)
 
 
