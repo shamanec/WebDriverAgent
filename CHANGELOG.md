@@ -1,3 +1,33 @@
+## [8.7.8](https://github.com/appium/WebDriverAgent/compare/v8.7.7...v8.7.8) (2024-07-18)
+
+### Bug Fixes
+
+* do nothing for an empty array in w3c actions ([#919](https://github.com/appium/WebDriverAgent/issues/919)) ([9e70ec1](https://github.com/appium/WebDriverAgent/commit/9e70ec1dbec1d1844278a58297a5b956ebaeb7fc))
+
+## [8.7.7](https://github.com/appium/WebDriverAgent/compare/v8.7.6...v8.7.7) (2024-07-18)
+
+### Bug Fixes
+
+* Pass-through modifier keys ([#918](https://github.com/appium/WebDriverAgent/issues/918)) ([29d0e5c](https://github.com/appium/WebDriverAgent/commit/29d0e5cb2a19809e1babb06e5adaa49b43c754a5))
+
+## [8.7.6](https://github.com/appium/WebDriverAgent/compare/v8.7.5...v8.7.6) (2024-07-02)
+
+### Miscellaneous Chores
+
+* Simplify xcodebuild lines monitoring ([#916](https://github.com/appium/WebDriverAgent/issues/916)) ([87678f2](https://github.com/appium/WebDriverAgent/commit/87678f260c98b3a3bc3d37017e9ef39098ccb3c4))
+
+## [8.7.5](https://github.com/appium/WebDriverAgent/compare/v8.7.4...v8.7.5) (2024-06-26)
+
+### Bug Fixes
+
+* Respect wdaRemotePort capability for real devices ([#915](https://github.com/appium/WebDriverAgent/issues/915)) ([03ea143](https://github.com/appium/WebDriverAgent/commit/03ea1439a9cc5b6495be60707bc474e3ae9bdb06))
+
+## [8.7.4](https://github.com/appium/WebDriverAgent/compare/v8.7.3...v8.7.4) (2024-06-20)
+
+### Miscellaneous Chores
+
+* Bump chai and chai-as-promised ([#913](https://github.com/appium/WebDriverAgent/issues/913)) ([9086783](https://github.com/appium/WebDriverAgent/commit/90867832ec3077f0036938aa68a168a5702fc90a))
+
 ## [8.7.3](https://github.com/appium/WebDriverAgent/compare/v8.7.2...v8.7.3) (2024-06-12)
 
 ### Miscellaneous Chores

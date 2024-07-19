@@ -1,6 +1,6 @@
 {
   "name": "appium-webdriveragent",
-  "version": "8.7.3",
+  "version": "8.7.8",
   "description": "Package bundling WebDriverAgent",
   "main": "./build/index.js",
   "types": "./build/index.d.ts",
@@ -48,7 +48,6 @@
   },
   "homepage": "https://github.com/appium/WebDriverAgent#readme",
   "devDependencies": {
-    "@appium/eslint-config-appium": "^8.0.4",
     "@appium/eslint-config-appium-ts": "^0.x",
     "@appium/test-support": "^3.0.0",
     "@appium/tsconfig": "^0.x",
@@ -56,17 +55,13 @@
     "@semantic-release/changelog": "^6.0.1",
     "@semantic-release/git": "^10.0.1",
     "@types/bluebird": "^3.5.38",
-    "@types/chai": "^4.3.5",
-    "@types/chai-as-promised": "^7.1.5",
     "@types/lodash": "^4.14.196",
     "@types/mocha": "^10.0.1",
     "@types/node": "^20.4.7",
-    "@types/sinon": "^17.0.0",
-    "@types/sinon-chai": "^3.2.9",
     "@types/teen_process": "^2.0.1",
     "appium-xcode": "^5.0.0",
-    "chai": "^4.2.0",
-    "chai-as-promised": "^7.1.1",
+    "chai": "^5.1.1",
+    "chai-as-promised": "^8.0.0",
     "conventional-changelog-conventionalcommits": "^8.0.0",
     "fancy-log": "^2.0.0",
     "node-simctl": "^7.0.1",
@@ -90,7 +85,7 @@
     "bluebird": "^3.5.5",
     "lodash": "^4.17.11",
     "source-map-support": "^0.x",
-    "teen_process": "^2.0.0"
+    "teen_process": "^2.2.0"
   },
   "files": [
     "index.ts",
