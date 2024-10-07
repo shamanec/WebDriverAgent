@@ -99,6 +99,24 @@ static bool fb_isLocked;
   return YES;
 }
 
+- (BOOL)fb_synthTouchAndHold:(CGFloat)x
+                   y:(CGFloat)y
+                   delay:(CGFloat)delay
+{
+  CGPoint point1 = CGPointMake(x,y);
+
+  XCPointerEventPath *pointerEventPath = [[XCPointerEventPath alloc] initForTouchAtPoint:point1 offset:0];
+  [pointerEventPath pressDownAtOffset: delay];
+
+  XCSynthesizedEventRecord *eventRecord = [[XCSynthesizedEventRecord alloc] initWithName:nil interfaceOrientation:0];
+  [eventRecord addPointerEventPath:pointerEventPath];
+
+  [[self eventSynthesizer]
+    synthesizeEvent:eventRecord
+    completion:(id)^(BOOL result, NSError *invokeError) {} ];
+  return YES;
+}
+
 - (BOOL)fb_goToHomescreenWithError:(NSError **)error
 {
   return [XCUIApplication fb_switchToSystemApplicationWithError:error];

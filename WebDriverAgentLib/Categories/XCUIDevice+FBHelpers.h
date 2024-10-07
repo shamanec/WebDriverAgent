@@ -150,6 +150,9 @@ typedef NS_ENUM(NSUInteger, FBUIInterfaceAppearance) {
                    x2:(CGFloat)x2
                    y2:(CGFloat)y2
                    delay:(CGFloat)delay;
+- (BOOL)fb_synthTouchAndHold:(CGFloat)x
+                   y:(CGFloat)y
+                   delay:(CGFloat)delay;
 /**
  Allows to set device appearance
 

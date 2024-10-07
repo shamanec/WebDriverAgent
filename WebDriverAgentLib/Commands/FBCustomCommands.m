@@ -40,6 +40,7 @@
   @[
     [[FBRoute POST:@"/wda/tap"].withoutSession respondWithTarget:self action:@selector(handleDeviceTap:)],
     [[FBRoute POST:@"/wda/swipe"].withoutSession respondWithTarget:self action:@selector(handleDeviceSwipe:)],
+    [[FBRoute POST:@"/wda/touchAndHold"].withoutSession respondWithTarget:self action:@selector(handleTouchAndHold:)],
     [[FBRoute POST:@"/timeouts"] respondWithTarget:self action:@selector(handleTimeouts:)],
     [[FBRoute POST:@"/wda/homescreen"].withoutSession respondWithTarget:self action:@selector(handleHomescreenCommand:)],
     [[FBRoute POST:@"/wda/deactivateApp"] respondWithTarget:self action:@selector(handleDeactivateAppCommand:)],
@@ -653,6 +654,17 @@
   [XCUIDevice.sharedDevice
     fb_synthSwipe:startX
     y1:startY x2:endX y2:endY delay:delay];
+
+  return FBResponseWithOK();
+}
+
++ (id <FBResponsePayload>)handleTouchAndHold:(FBRouteRequest *)request
+{
+  CGFloat x = [request.arguments[@"x"] doubleValue];
+  CGFloat y = [request.arguments[@"y"] doubleValue];
+  CGFloat delay = [request.arguments[@"delay"] doubleValue];
+  [XCUIDevice.sharedDevice
+   fb_synthTouchAndHold:x y:y delay:delay];
 
   return FBResponseWithOK();
 }
