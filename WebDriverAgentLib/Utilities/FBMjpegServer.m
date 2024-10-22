@@ -39,9 +39,12 @@ static const char *QUEUE_NAME = "JPEG Screenshots Provider Queue";
 
 @implementation FBMjpegServer
 
+NSData *previousScreenshotData;
+
 - (instancetype)init
 {
   if ((self = [super init])) {
+    previousScreenshotData = nil;
     _listeningClients = [NSMutableArray array];
     dispatch_queue_attr_t queueAttributes = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0);
     _backgroundQueue = dispatch_queue_create(QUEUE_NAME, queueAttributes);
@@ -95,12 +98,18 @@ static const char *QUEUE_NAME = "JPEG Screenshots Provider Queue";
     [self scheduleNextScreenshotWithInterval:timerInterval timeStarted:timeStarted];
     return;
   }
+  
+  if ([screenshotData isEqualToData:previousScreenshotData]) {
+    [self scheduleNextScreenshotWithInterval:timerInterval timeStarted:timeStarted];
+    return;
+  }
 
   CGFloat scalingFactor = FBConfiguration.mjpegScalingFactor / 100.0;
   [self.imageProcessor submitImageData:screenshotData
                          scalingFactor:scalingFactor
                      completionHandler:^(NSData * _Nonnull scaled) {
     [self sendScreenshot:scaled];
+    previousScreenshotData = screenshotData;
   }];
 
   [self scheduleNextScreenshotWithInterval:timerInterval timeStarted:timeStarted];
