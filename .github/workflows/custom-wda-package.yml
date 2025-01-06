@@ -1,0 +1,72 @@
+name: Building WebDriverAgent
+
+on:
+  push:
+    tags:
+      - 'latest'
+
+env:
+  HOST: macos-14
+  XCODE_VERSION: 15.3
+
+jobs:
+  for_real_devices:
+    name: Build WebDriverAgent for real iOS devices
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "${{ env.XCODE_VERSION }}"
+      - name: Build WebDriverAgentRunner-Runner.app for iOS
+        run: |
+          echo "Starting build process..."
+          
+          # Clean and build for testing
+          xcodebuild clean build-for-testing \
+            -project WebDriverAgent.xcodeproj \
+            -derivedDataPath ${{ env.DERIVED_DATA_PATH }} \
+            -scheme ${{ env.SCHEME }} \
+            -destination "${{ env.DESTINATION }}" \
+            CODE_SIGNING_ALLOWED=NO ARCHS=arm64
+
+          echo "Build completed."
+
+          # Navigate to derived data directory
+          pushd ${{ env.WD }}
+
+          echo "Creating IPA archive with XC frameworks..."
+          mkdir Payload
+          cp ${{ env.SCHEME }}-Runner.app Payload
+          zip -r WebDriverAgent.ipa Payload
+          popd
+
+          echo "Removing XC frameworks..."
+          rm -rf ${{ env.SCHEME }}-Runner.app/Frameworks/XC*.framework
+
+          echo "Creating IPA archive without XC frameworks..."
+          rm -rf Payload
+          mkdir Payload
+          cp ${{ env.SCHEME }}-Runner.app Payload
+          zip -r WebDriverAgent-noXC.ipa Payload
+          popd
+
+          echo "Moving files to workspace root..."
+          mv ${{ env.WD }}/WebDriverAgent.ipa ./
+          mv ${{ env.WD }}/WebDriverAgent-noXC.ipa ./
+          
+        env:
+          DERIVED_DATA_PATH: appium_wda_ios
+          SCHEME: WebDriverAgentRunner
+          DESTINATION: generic/platform=iOS
+          WD: appium_wda_ios/Build/Products/Debug-iphoneos
+
+      - name: Upload the built generic app package for iOS with XC frameworks
+        uses: actions/upload-artifact@v3.1.0
+        with:
+          path: "WebDriverAgent.ipa"
+      - name: Upload the built generic app package for iOS without XC frameworks
+        uses: actions/upload-artifact@v3.1.0
+        with:
+          path: "WebDriverAgent-noXC.ipa"
