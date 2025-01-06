@@ -2,7 +2,7 @@ name: Build WebDriverAgent IPA
 
 on:
   release:
-    types: [created,published,released]
+    types: [published]
 
 env:
   HOST: macos-14
