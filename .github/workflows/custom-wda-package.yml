@@ -40,7 +40,6 @@ jobs:
           mkdir Payload
           cp -r ${{ env.SCHEME }}-Runner.app Payload
           zip -r WebDriverAgent.ipa Payload
-          popd
 
           echo "Removing XC frameworks..."
           rm -rf ${{ env.SCHEME }}-Runner.app/Frameworks/XC*.framework
