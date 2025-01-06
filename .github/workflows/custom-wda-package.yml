@@ -35,33 +35,26 @@ jobs:
 
           # Navigate to derived data directory
           pushd ${{ env.WD }}
-
-          echo "Creating IPA archive with XC frameworks..."
-          mkdir Payload
-          cp -r ${{ env.SCHEME }}-Runner.app Payload
-          zip -r WebDriverAgent.ipa Payload
-
+        
           echo "Removing XC frameworks..."
           rm -rf ${{ env.SCHEME }}-Runner.app/Frameworks/XC*.framework
 
           echo "Creating IPA archive without XC frameworks..."
-          rm -rf Payload
           mkdir Payload
           cp -r ${{ env.SCHEME }}-Runner.app Payload
-          zip -r WebDriverAgent-noXC.ipa Payload
+          zip -r WebDriverAgent.ipa Payload
           popd
 
           echo "Moving files to workspace root..."
           mv ${{ env.WD }}/WebDriverAgent.ipa ./
-          mv ${{ env.WD }}/WebDriverAgent-noXC.ipa ./
           
         env:
           DERIVED_DATA_PATH: appium_wda_ios
           SCHEME: WebDriverAgentRunner
           DESTINATION: generic/platform=iOS
           WD: appium_wda_ios/Build/Products/Debug-iphoneos
-
-      - name: Upload IPA with XC frameworks to Release
+      
+      - name: Upload IPA
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
@@ -69,21 +62,3 @@ jobs:
           asset_name: WebDriverAgent.ipa
           tag: ${{ github.ref }}
           overwrite: true
-      
-      - name: Upload IPA without XC frameworks to Release
-        uses: svenstaro/upload-release-action@v2
-        with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: WebDriverAgent-noXC.ipa
-          asset_name: WebDriverAgent-noXC.ipa
-          tag: ${{ github.ref }}
-          overwrite: true
-
-      # - name: Upload the built generic app package for iOS with XC frameworks
-      #   uses: actions/upload-artifact@v3.1.0
-      #   with:
-      #     path: "WebDriverAgent.ipa"
-      # - name: Upload the built generic app package for iOS without XC frameworks
-      #   uses: actions/upload-artifact@v3.1.0
-      #   with:
-      #     path: "WebDriverAgent-noXC.ipa"
