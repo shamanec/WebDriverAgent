@@ -1,4 +1,4 @@
-name: Building WebDriverAgent
+name: Build WebDriverAgent IPA
 
 on:
   release:
