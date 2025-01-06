@@ -1,9 +1,8 @@
 name: Building WebDriverAgent
 
 on:
-  push:
-    tags:
-      - 'latest'
+  release:
+    types: [published]
 
 env:
   HOST: macos-14
