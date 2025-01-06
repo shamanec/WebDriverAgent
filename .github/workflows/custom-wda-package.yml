@@ -11,6 +11,7 @@ env:
 
 jobs:
   for_real_devices:
+    runs-on: macos-14
     name: Build WebDriverAgent for real iOS devices
 
     steps:
