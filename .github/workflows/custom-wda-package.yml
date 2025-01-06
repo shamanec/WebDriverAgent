@@ -39,7 +39,7 @@ jobs:
 
           echo "Creating IPA archive with XC frameworks..."
           mkdir Payload
-          cp ${{ env.SCHEME }}-Runner.app Payload
+          cp -r ${{ env.SCHEME }}-Runner.app Payload
           zip -r WebDriverAgent.ipa Payload
           popd
 
@@ -49,7 +49,7 @@ jobs:
           echo "Creating IPA archive without XC frameworks..."
           rm -rf Payload
           mkdir Payload
-          cp ${{ env.SCHEME }}-Runner.app Payload
+          cp -r ${{ env.SCHEME }}-Runner.app Payload
           zip -r WebDriverAgent-noXC.ipa Payload
           popd
 
