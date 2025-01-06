@@ -61,11 +61,29 @@ jobs:
           DESTINATION: generic/platform=iOS
           WD: appium_wda_ios/Build/Products/Debug-iphoneos
 
-      - name: Upload the built generic app package for iOS with XC frameworks
-        uses: actions/upload-artifact@v3.1.0
+      - name: Upload IPA with XC frameworks to Release
+        uses: svenstaro/upload-release-action@v2
         with:
-          path: "WebDriverAgent.ipa"
-      - name: Upload the built generic app package for iOS without XC frameworks
-        uses: actions/upload-artifact@v3.1.0
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: WebDriverAgent.ipa
+          asset_name: WebDriverAgent.ipa
+          tag: ${{ github.ref }}
+          overwrite: true
+      
+      - name: Upload IPA without XC frameworks to Release
+        uses: svenstaro/upload-release-action@v2
         with:
-          path: "WebDriverAgent-noXC.ipa"
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: WebDriverAgent-noXC.ipa
+          asset_name: WebDriverAgent-noXC.ipa
+          tag: ${{ github.ref }}
+          overwrite: true
+
+      # - name: Upload the built generic app package for iOS with XC frameworks
+      #   uses: actions/upload-artifact@v3.1.0
+      #   with:
+      #     path: "WebDriverAgent.ipa"
+      # - name: Upload the built generic app package for iOS without XC frameworks
+      #   uses: actions/upload-artifact@v3.1.0
+      #   with:
+      #     path: "WebDriverAgent-noXC.ipa"
