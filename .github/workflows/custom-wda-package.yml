@@ -2,7 +2,7 @@ name: Building WebDriverAgent
 
 on:
   release:
-    types: [created]
+    types: [created,published,released]
 
 env:
   HOST: macos-14
