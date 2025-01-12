@@ -48,6 +48,9 @@ NSData *previousScreenshotData;
     _listeningClients = [NSMutableArray array];
     dispatch_queue_attr_t queueAttributes = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0);
     _backgroundQueue = dispatch_queue_create(QUEUE_NAME, queueAttributes);
+    
+    previousScreenshotData = [self takeScreenshot];
+    
     dispatch_async(_backgroundQueue, ^{
       [self streamScreenshot];
     });
@@ -73,6 +76,25 @@ NSData *previousScreenshotData;
   }
 }
 
+- (NSData *)takeScreenshot
+{
+  NSError *error;
+  CGFloat compressionQuality = MAX(FBMinCompressionQuality,
+                                   MIN(FBMaxCompressionQuality, FBConfiguration.mjpegServerScreenshotQuality / 100.0));
+  NSData *screenshotData = [FBScreenshot takeInOriginalResolutionWithScreenID:self.mainScreenID
+                                                           compressionQuality:compressionQuality
+                                                                          uti:UTTypeJPEG
+                                                                      timeout:FRAME_TIMEOUT
+                                                                        error:&error];
+  
+  if (error) {
+          [FBLogger logFmt:@"%@", error.description];
+          return nil;
+      }
+
+  return screenshotData;
+}
+
 - (void)streamScreenshot
 {
   NSUInteger framerate = FBConfiguration.mjpegServerFramerate;
@@ -85,16 +107,8 @@ NSData *previousScreenshotData;
     }
   }
 
-  NSError *error;
-  CGFloat compressionQuality = MAX(FBMinCompressionQuality,
-                                   MIN(FBMaxCompressionQuality, FBConfiguration.mjpegServerScreenshotQuality / 100.0));
-  NSData *screenshotData = [FBScreenshot takeInOriginalResolutionWithScreenID:self.mainScreenID
-                                                           compressionQuality:compressionQuality
-                                                                          uti:UTTypeJPEG
-                                                                      timeout:FRAME_TIMEOUT
-                                                                        error:&error];
+  NSData *screenshotData = [self takeScreenshot];
   if (nil == screenshotData) {
-    [FBLogger logFmt:@"%@", error.description];
     [self scheduleNextScreenshotWithInterval:timerInterval timeStarted:timeStarted];
     return;
   }
