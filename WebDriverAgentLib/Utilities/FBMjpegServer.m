@@ -86,7 +86,6 @@ NSData *previousScreenshotData;
                                                                           uti:UTTypeJPEG
                                                                       timeout:FRAME_TIMEOUT
                                                                         error:&error];
-  
   if (error) {
           [FBLogger logFmt:@"%@", error.description];
           return nil;
@@ -141,11 +140,27 @@ NSData *previousScreenshotData;
   }
 }
 
+- (void)sendScreenshotToClient:(NSData *)screenshotData client:(GCDAsyncSocket *) client {
+  [FBLogger logFmt:@"sending to client"];
+  NSString *chunkHeader = [NSString stringWithFormat:@"--BoundaryString\r\nContent-type: image/jpg\r\nContent-Length: %@\r\n\r\n", @(screenshotData.length)];
+  NSMutableData *chunk = [[chunkHeader dataUsingEncoding:NSUTF8StringEncoding] mutableCopy];
+  [chunk appendData:screenshotData];
+  [chunk appendData:(id)[@"\r\n\r\n" dataUsingEncoding:NSUTF8StringEncoding]];
+  @synchronized (self.listeningClients) {
+    [client writeData:chunk withTimeout:-1 tag:0];
+  }
+}
+
 - (void)didClientConnect:(GCDAsyncSocket *)newClient
 {
   [FBLogger logFmt:@"Got screenshots broadcast client connection at %@:%d", newClient.connectedHost, newClient.connectedPort];
   // Start broadcast only after there is any data from the client
   [newClient readDataWithTimeout:-1 tag:0];
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+      NSData *screenshotData = [self takeScreenshot];
+      [self sendScreenshotToClient:screenshotData client:newClient];
+      [self sendScreenshotToClient:screenshotData client:newClient];
+  });
 }
 
 - (void)didClientSendData:(GCDAsyncSocket *)client
