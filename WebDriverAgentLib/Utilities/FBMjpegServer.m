@@ -48,13 +48,31 @@ NSData *previousScreenshotData;
     _listeningClients = [NSMutableArray array];
     dispatch_queue_attr_t queueAttributes = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0);
     _backgroundQueue = dispatch_queue_create(QUEUE_NAME, queueAttributes);
+    
+    previousScreenshotData = [self takeScreenshot];
+    
     dispatch_async(_backgroundQueue, ^{
       [self streamScreenshot];
     });
     _imageProcessor = [[FBImageProcessor alloc] init];
     _mainScreenID = [XCUIScreen.mainScreen displayID];
+    
+    // Send a screenshot at least twice a second
+    // Because due to the screenshot comparison optimization its possible that the stream does not show
+    // the latest screen data
+    [NSTimer scheduledTimerWithTimeInterval:0.5
+                                     target:self
+                                   selector:@selector(sendPeriodicScreenshot)
+                                   userInfo:nil
+                                    repeats:YES];
   }
   return self;
+}
+
+- (void)sendPeriodicScreenshot
+{
+  NSData* screenshotData = [self takeScreenshot];
+  [self sendScreenshot:screenshotData];
 }
 
 - (void)scheduleNextScreenshotWithInterval:(uint64_t)timerInterval timeStarted:(uint64_t)timeStarted
@@ -73,6 +91,24 @@ NSData *previousScreenshotData;
   }
 }
 
+- (NSData *)takeScreenshot
+{
+  NSError *error;
+  CGFloat compressionQuality = MAX(FBMinCompressionQuality,
+                                   MIN(FBMaxCompressionQuality, FBConfiguration.mjpegServerScreenshotQuality / 100.0));
+  NSData *screenshotData = [FBScreenshot takeInOriginalResolutionWithScreenID:self.mainScreenID
+                                                           compressionQuality:compressionQuality
+                                                                          uti:UTTypeJPEG
+                                                                      timeout:FRAME_TIMEOUT
+                                                                        error:&error];
+  if (error) {
+          [FBLogger logFmt:@"%@", error.description];
+          return nil;
+      }
+
+  return screenshotData;
+}
+
 - (void)streamScreenshot
 {
   NSUInteger framerate = FBConfiguration.mjpegServerFramerate;
@@ -85,20 +121,14 @@ NSData *previousScreenshotData;
     }
   }
 
-  NSError *error;
-  CGFloat compressionQuality = MAX(FBMinCompressionQuality,
-                                   MIN(FBMaxCompressionQuality, FBConfiguration.mjpegServerScreenshotQuality / 100.0));
-  NSData *screenshotData = [FBScreenshot takeInOriginalResolutionWithScreenID:self.mainScreenID
-                                                           compressionQuality:compressionQuality
-                                                                          uti:UTTypeJPEG
-                                                                      timeout:FRAME_TIMEOUT
-                                                                        error:&error];
+  NSData *screenshotData = [self takeScreenshot];
   if (nil == screenshotData) {
-    [FBLogger logFmt:@"%@", error.description];
     [self scheduleNextScreenshotWithInterval:timerInterval timeStarted:timeStarted];
     return;
   }
   
+  // If the current screenshot is the same as the previous screenshot
+  // Do not sent a frame to save bandwidth
   if ([screenshotData isEqualToData:previousScreenshotData]) {
     [self scheduleNextScreenshotWithInterval:timerInterval timeStarted:timeStarted];
     return;
@@ -127,11 +157,29 @@ NSData *previousScreenshotData;
   }
 }
 
+- (void)sendScreenshotToClient:(NSData *)screenshotData client:(GCDAsyncSocket *) client {
+  NSString *chunkHeader = [NSString stringWithFormat:@"--BoundaryString\r\nContent-type: image/jpg\r\nContent-Length: %@\r\n\r\n", @(screenshotData.length)];
+  NSMutableData *chunk = [[chunkHeader dataUsingEncoding:NSUTF8StringEncoding] mutableCopy];
+  [chunk appendData:screenshotData];
+  [chunk appendData:(id)[@"\r\n\r\n" dataUsingEncoding:NSUTF8StringEncoding]];
+  @synchronized (self.listeningClients) {
+    [client writeData:chunk withTimeout:-1 tag:0];
+  }
+}
+
 - (void)didClientConnect:(GCDAsyncSocket *)newClient
 {
   [FBLogger logFmt:@"Got screenshots broadcast client connection at %@:%d", newClient.connectedHost, newClient.connectedPort];
   // Start broadcast only after there is any data from the client
   [newClient readDataWithTimeout:-1 tag:0];
+  // When a new client connects sent two frames(two so that mjpeg can handle it properly)
+  // Because due to the screenshot comparison optimization its possible nothing is shown on the stream
+  // Until something changes on the device screen
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+      NSData *screenshotData = [self takeScreenshot];
+      [self sendScreenshotToClient:screenshotData client:newClient];
+      [self sendScreenshotToClient:screenshotData client:newClient];
+  });
 }
 
 - (void)didClientSendData:(GCDAsyncSocket *)client
