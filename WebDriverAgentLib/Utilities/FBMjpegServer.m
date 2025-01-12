@@ -56,8 +56,23 @@ NSData *previousScreenshotData;
     });
     _imageProcessor = [[FBImageProcessor alloc] init];
     _mainScreenID = [XCUIScreen.mainScreen displayID];
+    
+    // Send a screenshot at least twice a second
+    // Because due to the screenshot comparison optimization its possible that the stream does not show
+    // the latest screen data
+    [NSTimer scheduledTimerWithTimeInterval:0.5
+                                     target:self
+                                   selector:@selector(sendPeriodicScreenshot)
+                                   userInfo:nil
+                                    repeats:YES];
   }
   return self;
+}
+
+- (void)sendPeriodicScreenshot
+{
+  NSData* screenshotData = [self takeScreenshot];
+  [self sendScreenshot:screenshotData];
 }
 
 - (void)scheduleNextScreenshotWithInterval:(uint64_t)timerInterval timeStarted:(uint64_t)timeStarted
@@ -112,6 +127,8 @@ NSData *previousScreenshotData;
     return;
   }
   
+  // If the current screenshot is the same as the previous screenshot
+  // Do not sent a frame to save bandwidth
   if ([screenshotData isEqualToData:previousScreenshotData]) {
     [self scheduleNextScreenshotWithInterval:timerInterval timeStarted:timeStarted];
     return;
@@ -141,7 +158,6 @@ NSData *previousScreenshotData;
 }
 
 - (void)sendScreenshotToClient:(NSData *)screenshotData client:(GCDAsyncSocket *) client {
-  [FBLogger logFmt:@"sending to client"];
   NSString *chunkHeader = [NSString stringWithFormat:@"--BoundaryString\r\nContent-type: image/jpg\r\nContent-Length: %@\r\n\r\n", @(screenshotData.length)];
   NSMutableData *chunk = [[chunkHeader dataUsingEncoding:NSUTF8StringEncoding] mutableCopy];
   [chunk appendData:screenshotData];
@@ -156,6 +172,9 @@ NSData *previousScreenshotData;
   [FBLogger logFmt:@"Got screenshots broadcast client connection at %@:%d", newClient.connectedHost, newClient.connectedPort];
   // Start broadcast only after there is any data from the client
   [newClient readDataWithTimeout:-1 tag:0];
+  // When a new client connects sent two frames(two so that mjpeg can handle it properly)
+  // Because due to the screenshot comparison optimization its possible nothing is shown on the stream
+  // Until something changes on the device screen
   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
       NSData *screenshotData = [self takeScreenshot];
       [self sendScreenshotToClient:screenshotData client:newClient];
