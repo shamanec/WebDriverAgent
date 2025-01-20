@@ -33,6 +33,7 @@ static const char *QUEUE_NAME = "JPEG Screenshots Provider Queue";
 @property (nonatomic, readonly) NSMutableArray<GCDAsyncSocket *> *listeningClients;
 @property (nonatomic, readonly) FBImageProcessor *imageProcessor;
 @property (nonatomic, readonly) long long mainScreenID;
+@property (nonatomic, assign) uint64_t lastFrameSentTimestamp;
 
 @end
 
@@ -45,34 +46,18 @@ NSData *previousScreenshotData;
 {
   if ((self = [super init])) {
     previousScreenshotData = nil;
+    _lastFrameSentTimestamp = 0;
     _listeningClients = [NSMutableArray array];
     dispatch_queue_attr_t queueAttributes = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0);
     _backgroundQueue = dispatch_queue_create(QUEUE_NAME, queueAttributes);
-    
-    previousScreenshotData = [self takeScreenshot];
     
     dispatch_async(_backgroundQueue, ^{
       [self streamScreenshot];
     });
     _imageProcessor = [[FBImageProcessor alloc] init];
     _mainScreenID = [XCUIScreen.mainScreen displayID];
-    
-    // Send a screenshot at least twice a second
-    // Because due to the screenshot comparison optimization its possible that the stream does not show
-    // the latest screen data
-    [NSTimer scheduledTimerWithTimeInterval:0.5
-                                     target:self
-                                   selector:@selector(sendPeriodicScreenshot)
-                                   userInfo:nil
-                                    repeats:YES];
   }
   return self;
-}
-
-- (void)sendPeriodicScreenshot
-{
-  NSData* screenshotData = [self takeScreenshot];
-  [self sendScreenshot:screenshotData];
 }
 
 - (void)scheduleNextScreenshotWithInterval:(uint64_t)timerInterval timeStarted:(uint64_t)timeStarted
@@ -114,6 +99,7 @@ NSData *previousScreenshotData;
   NSUInteger framerate = FBConfiguration.mjpegServerFramerate;
   uint64_t timerInterval = (uint64_t)(1.0 / ((0 == framerate || framerate > MAX_FPS) ? MAX_FPS : framerate) * NSEC_PER_SEC);
   uint64_t timeStarted = clock_gettime_nsec_np(CLOCK_MONOTONIC_RAW);
+  uint64_t currentTime = timeStarted;
   @synchronized (self.listeningClients) {
     if (0 == self.listeningClients.count) {
       [self scheduleNextScreenshotWithInterval:timerInterval timeStarted:timeStarted];
@@ -127,9 +113,10 @@ NSData *previousScreenshotData;
     return;
   }
   
-  // If the current screenshot is the same as the previous screenshot
+  uint64_t timeElapsedSinceLastScreenshot = currentTime - self.lastFrameSentTimestamp;
+  // If the current screenshot is the same as the previous screenshot and it was less than 0.5 second ago
   // Do not sent a frame to save bandwidth
-  if ([screenshotData isEqualToData:previousScreenshotData]) {
+  if ([screenshotData isEqualToData:previousScreenshotData] && timeElapsedSinceLastScreenshot < (uint64_t)(0.5 * NSEC_PER_SEC)) {
     [self scheduleNextScreenshotWithInterval:timerInterval timeStarted:timeStarted];
     return;
   }
@@ -140,6 +127,7 @@ NSData *previousScreenshotData;
                      completionHandler:^(NSData * _Nonnull scaled) {
     [self sendScreenshot:scaled];
     previousScreenshotData = screenshotData;
+    self.lastFrameSentTimestamp = clock_gettime_nsec_np(CLOCK_MONOTONIC_RAW);
   }];
 
   [self scheduleNextScreenshotWithInterval:timerInterval timeStarted:timeStarted];
