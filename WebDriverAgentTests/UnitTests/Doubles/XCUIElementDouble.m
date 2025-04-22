@@ -23,6 +23,7 @@
     self.wdName = @"testName";
     self.wdLabel = @"testLabel";
     self.wdValue = @"magicValue";
+    self.wdPlaceholderValue = @"testPlaceholderValue";
     self.wdVisible = YES;
     self.wdAccessible = YES;
     self.wdEnabled = YES;
@@ -68,7 +69,12 @@
   self.didResolve = YES;
 }
 
-- (id _Nonnull)fb_takeSnapshot:(BOOL)inDepth;
+- (id _Nonnull)fb_standardSnapshot;
+{
+  return [self lastSnapshot];
+}
+
+- (id _Nonnull)fb_customSnapshot;
 {
   return [self lastSnapshot];
 }

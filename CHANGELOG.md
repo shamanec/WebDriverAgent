@@ -1,3 +1,87 @@
+## [9.6.0](https://github.com/appium/WebDriverAgent/compare/v9.5.2...v9.6.0) (2025-04-20)
+
+### Features
+
+* Split custom and standard snapshotting methods ([#1008](https://github.com/appium/WebDriverAgent/issues/1008)) ([8358856](https://github.com/appium/WebDriverAgent/commit/8358856f5968977b13d5cbdafac97f3053dae56e))
+
+## [9.5.2](https://github.com/appium/WebDriverAgent/compare/v9.5.1...v9.5.2) (2025-04-19)
+
+### Bug Fixes
+
+* Missing text in long text for get text/value ([#1007](https://github.com/appium/WebDriverAgent/issues/1007)) ([6603a0b](https://github.com/appium/WebDriverAgent/commit/6603a0ba384917d39389509958ccac03ad174610))
+
+## [9.5.1](https://github.com/appium/WebDriverAgent/compare/v9.5.0...v9.5.1) (2025-04-10)
+
+### Bug Fixes
+
+* Make sure we don't store element snapshot in the cache ([#1001](https://github.com/appium/WebDriverAgent/issues/1001)) ([cfe052b](https://github.com/appium/WebDriverAgent/commit/cfe052bb3adb3f3b24d0a34f386c60cf1516b308))
+
+## [9.5.0](https://github.com/appium/WebDriverAgent/compare/v9.4.1...v9.5.0) (2025-04-10)
+
+### Features
+
+* Add support for the autoClickAlertSelector setting ([#1002](https://github.com/appium/WebDriverAgent/issues/1002)) ([fd31b95](https://github.com/appium/WebDriverAgent/commit/fd31b9589199d0a7bc76919f6aa7c7c74c498b90))
+
+## [9.4.1](https://github.com/appium/WebDriverAgent/compare/v9.4.0...v9.4.1) (2025-04-05)
+
+### Miscellaneous Chores
+
+* bump appium-ios-simulator ([445741d](https://github.com/appium/WebDriverAgent/commit/445741d03313019016d4232f49e656d50f673f16))
+
+## [9.4.0](https://github.com/appium/WebDriverAgent/compare/v9.3.3...v9.4.0) (2025-04-02)
+
+### Features
+
+* Always apply the native snapshotting strategy for XCUIApplication instances ([#998](https://github.com/appium/WebDriverAgent/issues/998)) ([60f5aef](https://github.com/appium/WebDriverAgent/commit/60f5aeffdda85faffd60aba416dc9d92987f19ac))
+
+## [9.3.3](https://github.com/appium/WebDriverAgent/compare/v9.3.2...v9.3.3) (2025-03-27)
+
+### Bug Fixes
+
+* Properly set snapshot lookup scope if limitXpathContextScope is disabled ([#996](https://github.com/appium/WebDriverAgent/issues/996)) ([03ca7cd](https://github.com/appium/WebDriverAgent/commit/03ca7cd27b7cd92a45b344eb661db973c5dde809))
+
+## [9.3.2](https://github.com/appium/WebDriverAgent/compare/v9.3.1...v9.3.2) (2025-03-26)
+
+### Bug Fixes
+
+* Adjust limitXPathContextScope setting name ([#995](https://github.com/appium/WebDriverAgent/issues/995)) ([9789e39](https://github.com/appium/WebDriverAgent/commit/9789e393b55bc682a9a8ef5a65fba5e4dbf752ce))
+
+## [9.3.1](https://github.com/appium/WebDriverAgent/compare/v9.3.0...v9.3.1) (2025-03-25)
+
+### Miscellaneous Chores
+
+* **deps-dev:** bump sinon from 19.0.5 to 20.0.0 ([#994](https://github.com/appium/WebDriverAgent/issues/994)) ([f55462f](https://github.com/appium/WebDriverAgent/commit/f55462f4fa63314dfea48670d17ee54dc5fe2d96))
+
+## [9.3.0](https://github.com/appium/WebDriverAgent/compare/v9.2.0...v9.3.0) (2025-03-21)
+
+### Features
+
+* Add /window/rect W3C endpoint ([#991](https://github.com/appium/WebDriverAgent/issues/991)) ([34f9510](https://github.com/appium/WebDriverAgent/commit/34f95107997bdec63219a2fd917de899de3e198c))
+
+## [9.2.0](https://github.com/appium/WebDriverAgent/compare/v9.1.0...v9.2.0) (2025-03-13)
+
+### Features
+
+* Add 'limitXpathContextScope' setting ([#988](https://github.com/appium/WebDriverAgent/issues/988)) ([9c9d8af](https://github.com/appium/WebDriverAgent/commit/9c9d8af9c98ba7b2843a42f54354b78e126d2d27))
+
+## [9.1.0](https://github.com/appium/WebDriverAgent/compare/v9.0.6...v9.1.0) (2025-03-09)
+
+### Features
+
+* add placeholderValue ([#987](https://github.com/appium/WebDriverAgent/issues/987)) ([8c3a1cb](https://github.com/appium/WebDriverAgent/commit/8c3a1cb30655ed8d1a77d25bbeca71ee48c2ec3e))
+
+## [9.0.6](https://github.com/appium/WebDriverAgent/compare/v9.0.5...v9.0.6) (2025-02-28)
+
+### Bug Fixes
+
+* optimize LRU cache ([#985](https://github.com/appium/WebDriverAgent/issues/985)) ([46dc417](https://github.com/appium/WebDriverAgent/commit/46dc417da9f4a843838b414c0b154d6f478dbc0b))
+
+## [9.0.5](https://github.com/appium/WebDriverAgent/compare/v9.0.4...v9.0.5) (2025-02-26)
+
+### Bug Fixes
+
+* add autorelease pool to drain temporary objects ([#983](https://github.com/appium/WebDriverAgent/issues/983)) ([f92f1cd](https://github.com/appium/WebDriverAgent/commit/f92f1cde0fe914086103a110844bbe3bc0e3c4a6))
+
 ## [9.0.4](https://github.com/appium/WebDriverAgent/compare/v9.0.3...v9.0.4) (2025-02-21)
 
 ### Bug Fixes

@@ -43,7 +43,7 @@
 - (id<FBXCElementSnapshot>)destinationSnapshot
 {
   XCUIElement *matchingElement = self.testedView.buttons.allElementsBoundByIndex.firstObject;
-  id<FBXCElementSnapshot> snapshot = [matchingElement fb_takeSnapshot:YES];
+  id<FBXCElementSnapshot> snapshot = [matchingElement fb_customSnapshot];
   // Over iOS13, snapshot returns a child.
   // The purpose of here is return a single element to replace children with an empty array for testing.
   snapshot.children = @[];
@@ -93,6 +93,41 @@
   XCTAssertEqual([matchingSnapshots count], 5);
   for (id<FBXCElementSnapshot> element in matchingSnapshots) {
     XCTAssertTrue([[FBXCElementSnapshotWrapper ensureWrapped:element].wdType isEqualToString:@"XCUIElementTypeButton"]);
+  }
+}
+
+- (void)testFindMatchesWithoutContextScopeLimit
+{
+  XCUIElement *button = self.testedApplication.buttons.firstMatch;
+  BOOL previousValue = FBConfiguration.limitXpathContextScope;
+  FBConfiguration.limitXpathContextScope = NO;
+  @try {
+    NSArray *parentSnapshots = [FBXPath matchesWithRootElement:button forQuery:@".."];
+    XCTAssertEqual(parentSnapshots.count, 1);
+    XCTAssertEqualObjects(
+                          [FBXCElementSnapshotWrapper ensureWrapped:[parentSnapshots objectAtIndex:0]].wdLabel,
+                          @"MainView"
+                          );
+    NSArray *elements = [button.application fb_filterDescendantsWithSnapshots:parentSnapshots onlyChildren:NO];
+    XCTAssertEqual(elements.count, 1);
+    XCTAssertEqualObjects(
+                          [[elements objectAtIndex:0] wdLabel],
+                          @"MainView"
+                          );
+    NSArray *currentSnapshots = [FBXPath matchesWithRootElement:button forQuery:@"."];
+    XCTAssertEqual(currentSnapshots.count, 1);
+    XCTAssertEqualObjects(
+                          [FBXCElementSnapshotWrapper ensureWrapped:[currentSnapshots objectAtIndex:0]].wdType,
+                          @"XCUIElementTypeButton"
+                          );
+    NSArray *currentElements = [button.application fb_filterDescendantsWithSnapshots:currentSnapshots onlyChildren:NO];
+    XCTAssertEqual(currentElements.count, 1);
+    XCTAssertEqualObjects(
+                          [[currentElements objectAtIndex:0] wdType],
+                          @"XCUIElementTypeButton"
+                          );
+  } @finally {
+    FBConfiguration.limitXpathContextScope = previousValue;
   }
 }
 

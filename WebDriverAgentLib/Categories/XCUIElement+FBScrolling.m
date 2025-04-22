@@ -49,35 +49,35 @@ const CGFloat FBScrollTouchProportion = 0.75f;
 
 - (BOOL)fb_nativeScrollToVisibleWithError:(NSError **)error
 {
-  id<FBXCElementSnapshot> snapshot = [self fb_takeSnapshot:YES];
+  id<FBXCElementSnapshot> snapshot = [self fb_customSnapshot];
   return nil != [self _hitPointByAttemptingToScrollToVisibleSnapshot:snapshot
                                                                error:error];
 }
 
 - (void)fb_scrollUpByNormalizedDistance:(CGFloat)distance
 {
-  id<FBXCElementSnapshot> snapshot = [self fb_takeSnapshot:YES];
+  id<FBXCElementSnapshot> snapshot = [self fb_customSnapshot];
   [[FBXCElementSnapshotWrapper ensureWrapped:snapshot] fb_scrollUpByNormalizedDistance:distance
                                                                          inApplication:self.application];
 }
 
 - (void)fb_scrollDownByNormalizedDistance:(CGFloat)distance
 {
-  id<FBXCElementSnapshot> snapshot = [self fb_takeSnapshot:YES];
+  id<FBXCElementSnapshot> snapshot = [self fb_customSnapshot];
   [[FBXCElementSnapshotWrapper ensureWrapped:snapshot] fb_scrollDownByNormalizedDistance:distance
                                                                            inApplication:self.application];
 }
 
 - (void)fb_scrollLeftByNormalizedDistance:(CGFloat)distance
 {
-  id<FBXCElementSnapshot> snapshot = [self fb_takeSnapshot:YES];
+  id<FBXCElementSnapshot> snapshot = [self fb_customSnapshot];
   [[FBXCElementSnapshotWrapper ensureWrapped:snapshot] fb_scrollLeftByNormalizedDistance:distance
                                                                            inApplication:self.application];
 }
 
 - (void)fb_scrollRightByNormalizedDistance:(CGFloat)distance
 {
-  id<FBXCElementSnapshot> snapshot = [self fb_takeSnapshot:YES];
+  id<FBXCElementSnapshot> snapshot = [self fb_customSnapshot];
   [[FBXCElementSnapshotWrapper ensureWrapped:snapshot] fb_scrollRightByNormalizedDistance:distance
                                                                             inApplication:self.application];
 }
@@ -99,7 +99,7 @@ const CGFloat FBScrollTouchProportion = 0.75f;
                                        scrollDirection:(FBXCUIElementScrollDirection)scrollDirection
                                                  error:(NSError **)error
 {
-  FBXCElementSnapshotWrapper *prescrollSnapshot = [FBXCElementSnapshotWrapper ensureWrapped:[self fb_takeSnapshot:YES]];
+  FBXCElementSnapshotWrapper *prescrollSnapshot = [FBXCElementSnapshotWrapper ensureWrapped:[self fb_customSnapshot]];
 
   if (prescrollSnapshot.isWDVisible) {
     return YES;
@@ -178,23 +178,25 @@ const CGFloat FBScrollTouchProportion = 0.75f;
   FBXCElementSnapshotWrapper *scrollViewWrapped = [FBXCElementSnapshotWrapper ensureWrapped:scrollView];
   // Scrolling till cell is visible and get current value of frames
   while (![self fb_isEquivalentElementSnapshotVisible:prescrollSnapshot] && scrollCount < maxScrollCount) {
-    if (targetCellIndex < visibleCellIndex) {
-      scrollDirection == FBXCUIElementScrollDirectionVertical ?
-        [scrollViewWrapped fb_scrollUpByNormalizedDistance:normalizedScrollDistance
-                                             inApplication:self.application] :
-        [scrollViewWrapped fb_scrollLeftByNormalizedDistance:normalizedScrollDistance
-                                               inApplication:self.application];
-    }
-    else {
-      scrollDirection == FBXCUIElementScrollDirectionVertical ?
-        [scrollViewWrapped fb_scrollDownByNormalizedDistance:normalizedScrollDistance
+    @autoreleasepool {
+      if (targetCellIndex < visibleCellIndex) {
+        scrollDirection == FBXCUIElementScrollDirectionVertical ?
+          [scrollViewWrapped fb_scrollUpByNormalizedDistance:normalizedScrollDistance
                                                inApplication:self.application] :
-        [scrollViewWrapped fb_scrollRightByNormalizedDistance:normalizedScrollDistance
-                                                inApplication:self.application];
+          [scrollViewWrapped fb_scrollLeftByNormalizedDistance:normalizedScrollDistance
+                                                 inApplication:self.application];
+      }
+      else {
+        scrollDirection == FBXCUIElementScrollDirectionVertical ?
+          [scrollViewWrapped fb_scrollDownByNormalizedDistance:normalizedScrollDistance
+                                                 inApplication:self.application] :
+          [scrollViewWrapped fb_scrollRightByNormalizedDistance:normalizedScrollDistance
+                                                  inApplication:self.application];
+      }
+      scrollCount++;
+      // Wait for scroll animation
+      [self fb_waitUntilStableWithTimeout:FBConfiguration.animationCoolOffTimeout];
     }
-    scrollCount++;
-    // Wait for scroll animation
-    [self fb_waitUntilStableWithTimeout:FBConfiguration.animationCoolOffTimeout];
   }
 
   if (scrollCount >= maxScrollCount) {
@@ -207,7 +209,7 @@ const CGFloat FBScrollTouchProportion = 0.75f;
   // Cell is now visible, but it might be only partialy visible, scrolling till whole frame is visible.
   // Sometimes, attempting to grab the parent snapshot of the target cell after scrolling is complete causes a stale element reference exception.
   // Trying fb_cachedSnapshot first
-  FBXCElementSnapshotWrapper *targetCellSnapshotWrapped = [FBXCElementSnapshotWrapper ensureWrapped:[self fb_takeSnapshot:YES]];
+  FBXCElementSnapshotWrapper *targetCellSnapshotWrapped = [FBXCElementSnapshotWrapper ensureWrapped:[self fb_customSnapshot]];
   targetCellSnapshot = [targetCellSnapshotWrapped fb_parentCellSnapshot];
   CGRect visibleFrame = [FBXCElementSnapshotWrapper ensureWrapped:targetCellSnapshot].fb_visibleFrame;
   
@@ -227,7 +229,7 @@ const CGFloat FBScrollTouchProportion = 0.75f;
     return YES;
   }
 
-  id<FBXCElementSnapshot> appSnapshot = [self.application fb_takeSnapshot:YES];
+  id<FBXCElementSnapshot> appSnapshot = [self.application fb_standardSnapshot];
   for (id<FBXCElementSnapshot> elementSnapshot in appSnapshot._allDescendants.copy) {
     FBXCElementSnapshotWrapper *wrappedElementSnapshot = [FBXCElementSnapshotWrapper ensureWrapped:elementSnapshot];
     // We are comparing pre-scroll snapshot so frames are irrelevant.

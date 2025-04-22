@@ -44,25 +44,39 @@
 
 @implementation XCUIElement (FBUtilities)
 
-- (id<FBXCElementSnapshot>)fb_takeSnapshot:(BOOL)inDepth
+- (id<FBXCElementSnapshot>)fb_takeSnapshot:(BOOL)isCustom
 {
-  NSError *error = nil;
-  self.lastSnapshot = inDepth
-    ? [self.fb_query fb_uniqueSnapshotWithError:&error]
-    : (id<FBXCElementSnapshot>)[self snapshotWithError:&error];
-  if (nil == self.lastSnapshot) {
-    NSString *hintText = @"Make sure the application UI has the expected state";
-    if (nil != error && [error.localizedDescription containsString:@"Identity Binding"]) {
-      hintText = [NSString stringWithFormat:@"%@. You could also try to switch the binding strategy using the 'boundElementsByIndex' setting for the element lookup", hintText];
+  __block id<FBXCElementSnapshot> snapshot = nil;
+  @autoreleasepool {
+    NSError *error = nil;
+    snapshot = isCustom
+      ? [self.fb_query fb_uniqueSnapshotWithError:&error]
+      : (id<FBXCElementSnapshot>)[self snapshotWithError:&error];
+    if (nil == snapshot) {
+      NSString *hintText = @"Make sure the application UI has the expected state";
+      if (nil != error && [error.localizedDescription containsString:@"Identity Binding"]) {
+        hintText = [NSString stringWithFormat:@"%@. You could also try to switch the binding strategy using the 'boundElementsByIndex' setting for the element lookup", hintText];
+      }
+      NSString *reason = [NSString stringWithFormat:@"The previously found element \"%@\" is not present in the current view anymore. %@",
+                          self.description, hintText];
+      if (nil != error) {
+        reason = [NSString stringWithFormat:@"%@. Original error: %@", reason, error.localizedDescription];
+      }
+      @throw [NSException exceptionWithName:FBStaleElementException reason:reason userInfo:@{}];
     }
-    NSString *reason = [NSString stringWithFormat:@"The previously found element \"%@\" is not present in the current view anymore. %@",
-                        self.description, hintText];
-    if (nil != error) {
-      reason = [NSString stringWithFormat:@"%@. Original error: %@", reason, error.localizedDescription];
-    }
-    @throw [NSException exceptionWithName:FBStaleElementException reason:reason userInfo:@{}];
   }
+  self.lastSnapshot = snapshot;
   return self.lastSnapshot;
+}
+
+- (id<FBXCElementSnapshot>)fb_standardSnapshot
+{
+  return [self fb_takeSnapshot:NO];
+}
+
+- (id<FBXCElementSnapshot>)fb_customSnapshot
+{
+  return [self fb_takeSnapshot:YES];
 }
 
 - (id<FBXCElementSnapshot>)fb_cachedSnapshot
@@ -78,9 +92,11 @@
   }
   NSMutableArray<NSString *> *matchedIds = [NSMutableArray new];
   for (id<FBXCElementSnapshot> snapshot in snapshots) {
-    NSString *uid = [FBXCElementSnapshotWrapper wdUIDWithSnapshot:snapshot];
-    if (nil != uid) {
-      [matchedIds addObject:uid];
+    @autoreleasepool {
+      NSString *uid = [FBXCElementSnapshotWrapper wdUIDWithSnapshot:snapshot];
+      if (nil != uid) {
+        [matchedIds addObject:uid];
+      }
     }
   }
   NSMutableArray<XCUIElement *> *matchedElements = [NSMutableArray array];

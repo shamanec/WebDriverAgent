@@ -12,6 +12,7 @@
 
 #import "FBMacros.h"
 #import "FBElementTypeTransformer.h"
+#import "FBConfiguration.h"
 #import "NSPredicate+FBFormat.h"
 #import "FBXCElementSnapshotWrapper+Helpers.h"
 #import "FBXCodeCompatibility.h"
@@ -109,8 +110,9 @@
     id<FBXCElementSnapshot> snapshot = matchingSnapshots.firstObject;
     matchingSnapshots = @[snapshot];
   }
-  return [self fb_filterDescendantsWithSnapshots:matchingSnapshots
-                                    onlyChildren:NO];
+  XCUIElement *scopeRoot = FBConfiguration.limitXpathContextScope ? self : self.application;
+  return [scopeRoot fb_filterDescendantsWithSnapshots:matchingSnapshots
+                                         onlyChildren:NO];
 }
 
 
@@ -121,7 +123,9 @@
 {
   NSPredicate *predicate = [NSPredicate predicateWithBlock:^BOOL(id<FBXCElementSnapshot> snapshot,
                                                                  NSDictionary<NSString *,id> * _Nullable bindings) {
-    return [[FBXCElementSnapshotWrapper wdNameWithSnapshot:snapshot] isEqualToString:accessibilityId];
+    @autoreleasepool {
+      return [[FBXCElementSnapshotWrapper wdNameWithSnapshot:snapshot] isEqualToString:accessibilityId];
+    }
   }];
   return [self fb_descendantsMatchingPredicate:predicate
                    shouldReturnAfterFirstMatch:shouldReturnAfterFirstMatch];

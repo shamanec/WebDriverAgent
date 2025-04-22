@@ -53,6 +53,7 @@
   return
   @[
     [[FBRoute GET:@"/window/size"] respondWithTarget:self action:@selector(handleGetWindowSize:)],
+    [[FBRoute GET:@"/window/rect"] respondWithTarget:self action:@selector(handleGetWindowRect:)],
     [[FBRoute GET:@"/window/size"].withoutSession respondWithTarget:self action:@selector(handleGetWindowSize:)],
     [[FBRoute GET:@"/element/:uuid/enabled"] respondWithTarget:self action:@selector(handleGetEnabled:)],
     [[FBRoute GET:@"/element/:uuid/rect"] respondWithTarget:self action:@selector(handleGetRect:)],
@@ -150,7 +151,9 @@
 {
   FBElementCache *elementCache = request.session.elementCache;
   XCUIElement *element = [elementCache elementForUUID:(NSString *)request.parameters[@"uuid"]];
-  FBXCElementSnapshotWrapper *wrappedSnapshot = [FBXCElementSnapshotWrapper ensureWrapped:[element fb_takeSnapshot:NO]];
+  // https://github.com/appium/appium-xcuitest-driver/issues/2552
+  id<FBXCElementSnapshot> snapshot = [element fb_customSnapshot];
+  FBXCElementSnapshotWrapper *wrappedSnapshot = [FBXCElementSnapshotWrapper ensureWrapped:snapshot];
   id text = FBFirstNonEmptyValue(wrappedSnapshot.wdValue, wrappedSnapshot.wdLabel);
   return FBResponseWithObject(text ?: @"");
 }
@@ -268,6 +271,7 @@
     NSString *focusedUUID = [elementCache storeElement:(useNativeCachingStrategy
                                                         ? focusedElement
                                                         : [focusedElement fb_stableInstanceWithUid:focusedElement.fb_uid])];
+    focusedElement.lastSnapshot = nil;
     if (focusedUUID && [focusedUUID isEqualToString:(id)request.parameters[@"uuid"]]) {
       isFocused = YES;
     }
@@ -525,13 +529,32 @@
 {
   XCUIApplication *app = request.session.activeApplication ?: XCUIApplication.fb_activeApplication;
 
-#if TARGET_OS_TV
-  CGSize screenSize = app.frame.size;
-#else
   CGRect frame = app.wdFrame;
+#if TARGET_OS_TV
+  CGSize screenSize = frame.size;
+#else
   CGSize screenSize = FBAdjustDimensionsForApplication(frame.size, app.interfaceOrientation);
 #endif
   return FBResponseWithObject(@{
+    @"width": @(screenSize.width),
+    @"height": @(screenSize.height),
+  });
+}
+
+
++ (id<FBResponsePayload>)handleGetWindowRect:(FBRouteRequest *)request
+{
+  XCUIApplication *app = request.session.activeApplication ?: XCUIApplication.fb_activeApplication;
+
+  CGRect frame = app.wdFrame;
+#if TARGET_OS_TV
+  CGSize screenSize = frame.size;
+#else
+  CGSize screenSize = FBAdjustDimensionsForApplication(frame.size, app.interfaceOrientation);
+#endif
+  return FBResponseWithObject(@{
+    @"x": @(frame.origin.x),
+    @"y": @(frame.origin.y),
     @"width": @(screenSize.width),
     @"height": @(screenSize.height),
   });
