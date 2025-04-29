@@ -27,9 +27,9 @@ jobs:
             -derivedDataPath ${{ env.DERIVED_DATA_PATH }} \
             -scheme ${{ env.SCHEME }} \
             -destination "${{ env.DESTINATION }}" \
-            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_ALLOWED=YES \
             CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGN_IDENTITY=- \
             DEVELOPMENT_TEAM="" \
             PROVISIONING_PROFILE_SPECIFIER="" \
             ARCHS=arm64
