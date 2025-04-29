@@ -1,41 +1,44 @@
+---
 name: Build WebDriverAgent IPA
-
 on:
   release:
-    types: [published]
-
+    types:
+      - published
 env:
   HOST: macos-14
   XCODE_VERSION: 15.3
-
 jobs:
   for_real_devices:
     runs-on: macos-14
     name: Build WebDriverAgent for real iOS devices
-
     steps:
       - name: Checkout
         uses: actions/checkout@v3
       - uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: "${{ env.XCODE_VERSION }}"
+          xcode-version: ${{ env.XCODE_VERSION }}
       - name: Build WebDriverAgentRunner-Runner.app for iOS
         run: |
           echo "Starting build process..."
-          
+
           # Clean and build for testing
           xcodebuild clean build-for-testing \
             -project WebDriverAgent.xcodeproj \
             -derivedDataPath ${{ env.DERIVED_DATA_PATH }} \
             -scheme ${{ env.SCHEME }} \
             -destination "${{ env.DESTINATION }}" \
-            CODE_SIGNING_ALLOWED=NO ARCHS=arm64
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            ARCHS=arm64
 
           echo "Build completed."
 
           # Navigate to derived data directory
           pushd ${{ env.WD }}
-        
+
           echo "Removing XC frameworks..."
           rm -rf ${{ env.SCHEME }}-Runner.app/Frameworks/XC*.framework
 
@@ -47,13 +50,11 @@ jobs:
 
           echo "Moving files to workspace root..."
           mv ${{ env.WD }}/WebDriverAgent.ipa ./
-          
         env:
           DERIVED_DATA_PATH: appium_wda_ios
           SCHEME: WebDriverAgentRunner
           DESTINATION: generic/platform=iOS
           WD: appium_wda_ios/Build/Products/Debug-iphoneos
-      
       - name: Upload IPA
         uses: svenstaro/upload-release-action@v2
         with:
