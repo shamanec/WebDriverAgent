@@ -80,7 +80,7 @@ static bool fb_isLocked;
    synthesizeEvent:eventRecord
    completion:(id)^(BOOL result, NSError *invokeError) {} ];
   
-  return YES;   // fire-and-forget, mirrors your previous behaviour
+  return YES;
 }
 
 - (BOOL)fb_synthTapWithX:(CGFloat)x
