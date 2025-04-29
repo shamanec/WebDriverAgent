@@ -40,6 +40,7 @@
   @[
     [[FBRoute POST:@"/wda/tap"].withoutSession respondWithTarget:self action:@selector(handleDeviceTap:)],
     [[FBRoute POST:@"/wda/swipe"].withoutSession respondWithTarget:self action:@selector(handleDeviceSwipe:)],
+    [[FBRoute POST:@"/wda/type"].withoutSession respondWithTarget:self action:@selector(handleDeviceType:)],
     [[FBRoute POST:@"/wda/touchAndHold"].withoutSession respondWithTarget:self action:@selector(handleTouchAndHold:)],
     [[FBRoute POST:@"/timeouts"] respondWithTarget:self action:@selector(handleTimeouts:)],
     [[FBRoute POST:@"/wda/homescreen"].withoutSession respondWithTarget:self action:@selector(handleHomescreenCommand:)],
@@ -632,6 +633,16 @@
                                                                traceback:nil]);
   }
   return FBResponseWithObject(result);
+}
+
++ (id <FBResponsePayload>)handleDeviceType:(FBRouteRequest *)request
+{
+  NSString *text = request.arguments[@"text"];
+  [XCUIDevice.sharedDevice
+   fb_synthTypeText:text
+  ];
+  
+  return FBResponseWithOK();
 }
 
 + (id <FBResponsePayload>)handleDeviceTap:(FBRouteRequest *)request
