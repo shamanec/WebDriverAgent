@@ -3,8 +3,7 @@
  * All rights reserved.
  *
  * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * LICENSE file in the root directory of this source tree.
  */
 
 #import <XCTest/XCTest.h>
@@ -455,6 +454,15 @@
 - (void)testInvisibleDescendantWithXPathQuery
 {
   NSArray<XCUIElement *> *matchingSnapshots = [self.testedApplication fb_descendantsMatchingXPathQuery:@"//XCUIElementTypeStaticText[@visible='false']"
+                                                                           shouldReturnAfterFirstMatch:NO];
+  XCTAssertGreaterThan(matchingSnapshots.count, 1);
+  XCTAssertEqual(matchingSnapshots.lastObject.elementType, XCUIElementTypeStaticText);
+  XCTAssertFalse(matchingSnapshots.lastObject.fb_isVisible);
+}
+
+- (void)testNonHittableDescendantWithXPathQuery
+{
+  NSArray<XCUIElement *> *matchingSnapshots = [self.testedApplication fb_descendantsMatchingXPathQuery:@"//XCUIElementTypeStaticText[@hittable='false']"
                                                                            shouldReturnAfterFirstMatch:NO];
   XCTAssertGreaterThan(matchingSnapshots.count, 1);
   XCTAssertEqual(matchingSnapshots.lastObject.elementType, XCUIElementTypeStaticText);

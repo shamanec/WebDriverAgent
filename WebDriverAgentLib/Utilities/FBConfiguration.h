@@ -3,8 +3,7 @@
  * All rights reserved.
  *
  * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * LICENSE file in the root directory of this source tree.
  */
 
 #import <Foundation/Foundation.h>
@@ -136,8 +135,8 @@ extern NSString *const FBSnapshotMaxDepthKey;
  ! Setting this to a value less than 100, especially together with orientation fixing enabled
  ! may lead to WDA process termination because of an excessive CPU usage.
  */
-+ (NSUInteger)mjpegScalingFactor;
-+ (void)setMjpegScalingFactor:(NSUInteger)scalingFactor;
++ (CGFloat)mjpegScalingFactor;
++ (void)setMjpegScalingFactor:(CGFloat)scalingFactor;
 
 /**
  YES if verbose logging is enabled. NO otherwise.
@@ -331,6 +330,45 @@ typedef NS_ENUM(NSInteger, FBConfigurationKeyboardPreference) {
  Resets all session-specific settings to their default values
  */
 + (void)resetSessionSettings;
+
+/**
+ * Whether to calculate `hittable` attribute using native APIs
+ * instead of legacy heuristics.
+ * This flag improves accuracy, but may affect performance.
+ * Disabled by default.
+ *
+ * @param enabled Either YES or NO
+ */
++ (void)setIncludeHittableInPageSource:(BOOL)enabled;
++ (BOOL)includeHittableInPageSource;
+
+/**
+ * Whether to include `nativeFrame` attribute in the XML page source.
+ *
+ * When enabled, the XML representation will contain the precise rendered
+ * frame of the UI element.
+ *
+ * This value is more accurate than the legacy `wdFrame`, which applies rounding
+ * and may introduce inconsistencies in size and position calculations.
+ *
+ * The value is disabled by default to avoid potential performance overhead.
+ *
+ * @param enabled Either YES or NO
+ */
++ (void)setIncludeNativeFrameInPageSource:(BOOL)enabled;
++ (BOOL)includeNativeFrameInPageSource;
+
+/**
+ * Whether to include `minValue`/`maxValue` attributes in the page source.
+ * These attributes are retrieved from native element snapshots and represent
+ * value boundaries for elements like sliders or progress indicators.
+ * This may affect performance if used on many elements.
+ * Disabled by default.
+ *
+ * @param enabled Either YES or NO
+ */
++ (void)setIncludeMinMaxValueInPageSource:(BOOL)enabled;
++ (BOOL)includeMinMaxValueInPageSource;
 
 @end
 

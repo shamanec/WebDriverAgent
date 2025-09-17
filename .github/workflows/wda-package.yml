@@ -8,9 +8,9 @@ on:
       - completed
 
 env:
-  HOST: macos-14
-  XCODE_VERSION: 15.3
-  DESTINATION_SIM: platform=iOS Simulator,name=iPhone 15 Pro
+  HOST: macos-15
+  XCODE_VERSION: 16.3
+  DESTINATION_SIM: platform=iOS Simulator,name=iPhone 16 Plus
   DESTINATION_SIM_tvOS: platform=tvOS Simulator,name=Apple TV 4K (3rd generation)
 
 jobs:
@@ -36,7 +36,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: "${{ env.XCODE_VERSION }}"
@@ -76,9 +76,19 @@ jobs:
 
     strategy:
       matrix:
-        # '' is for iOS
-        target: ['', '_tvOS']
-        arch: [x86_64, arm64]
+        include:
+          - target: ''
+            arch: x86_64
+            simulator_name: Debug-iphonesimulator
+          - target: ''
+            arch: arm64
+            simulator_name: Debug-iphonesimulator
+          - target: '_tvOS'
+            arch: x86_64
+            simulator_name: Debug-appletvsimulator
+          - target: '_tvOS'
+            arch: arm64
+            simulator_name: Debug-appletvsimulator
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -89,10 +99,11 @@ jobs:
         run: |
           DESTINATION=$DESTINATION_SIM${{ matrix.target }} sh $GITHUB_WORKSPACE/Scripts/ci/build-sim.sh
         env:
-          TARGET: ${{ matrix.target }}
           SCHEME: WebDriverAgentRunner${{ matrix.target }}
           ARCHS: ${{ matrix.arch }}
           ZIP_PKG_NAME: "WebDriverAgentRunner${{ matrix.target }}-Build-Sim-${{ matrix.arch }}.zip"
+          DERIVED_DATA_PATH: wda_build
+          WD: wda_build/Build/Products/${{ matrix.simulator_name }}
       - name: Upload the built generic app package for WebDriverAgentRunner${{ matrix.target }} with ${{ matrix.arch }}
         uses: actions/upload-artifact@master
         with:

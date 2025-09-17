@@ -3,8 +3,7 @@
  * All rights reserved.
  *
  * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * LICENSE file in the root directory of this source tree.
  */
 
 #import "FBElementCommands.h"
@@ -562,17 +561,23 @@
 
 + (id<FBResponsePayload>)handleElementScreenshot:(FBRouteRequest *)request
 {
-  FBElementCache *elementCache = request.session.elementCache;
-  XCUIElement *element = [elementCache elementForUUID:(NSString *)request.parameters[@"uuid"]
-                                       checkStaleness:YES];
-  NSData *screenshotData = [element.screenshot PNGRepresentation];
-  if (nil == screenshotData) {
-    NSString *errMsg = [NSString stringWithFormat:@"Cannot take a screenshot of %@", element.description];
-    return FBResponseWithStatus([FBCommandStatus unableToCaptureScreenErrorWithMessage:errMsg
-                                                                             traceback:nil]);
+  @autoreleasepool {
+    FBElementCache *elementCache = request.session.elementCache;
+    XCUIElement *element = [elementCache elementForUUID:(NSString *)request.parameters[@"uuid"]
+                                        checkStaleness:YES];
+    NSData *screenshotData = nil;
+    @autoreleasepool {
+      screenshotData = [element.screenshot PNGRepresentation];
+      if (nil == screenshotData) {
+        NSString *errMsg = [NSString stringWithFormat:@"Cannot take a screenshot of %@", element.description];
+        return FBResponseWithStatus([FBCommandStatus unableToCaptureScreenErrorWithMessage:errMsg
+                                                                                traceback:nil]);
+      }
+    }
+    NSString *screenshot = [screenshotData base64EncodedStringWithOptions:0];
+    screenshotData = nil;
+    return FBResponseWithObject(screenshot);
   }
-  NSString *screenshot = [screenshotData base64EncodedStringWithOptions:0];
-  return FBResponseWithObject(screenshot);
 }
 
 

@@ -1,3 +1,175 @@
+## [10.1.1](https://github.com/appium/WebDriverAgent/compare/v10.1.0...v10.1.1) (2025-09-12)
+
+### Miscellaneous Chores
+
+* remove patents file ([#1061](https://github.com/appium/WebDriverAgent/issues/1061)) ([b001c4e](https://github.com/appium/WebDriverAgent/commit/b001c4e39ef71cb8b91ef7391b418f32a7ebe21c))
+
+## [10.1.0](https://github.com/appium/WebDriverAgent/compare/v10.0.1...v10.1.0) (2025-09-03)
+
+### Features
+
+* Add process and bundle identifiers to the application node in the XML source ([#1055](https://github.com/appium/WebDriverAgent/issues/1055)) ([088cff2](https://github.com/appium/WebDriverAgent/commit/088cff2b2bc19ddde698ec06f1db37c6989cf392))
+
+## [10.0.1](https://github.com/appium/WebDriverAgent/compare/v10.0.0...v10.0.1) (2025-08-23)
+
+### Miscellaneous Chores
+
+* **deps-dev:** bump chai from 5.3.2 to 6.0.0 ([#1053](https://github.com/appium/WebDriverAgent/issues/1053)) ([9e9ec38](https://github.com/appium/WebDriverAgent/commit/9e9ec381bd6695e1c8b89f2a9c304b12385c0134))
+
+## [10.0.0](https://github.com/appium/WebDriverAgent/compare/v9.15.3...v10.0.0) (2025-08-17)
+
+### ⚠ BREAKING CHANGES
+
+* Required Node.js version has been bumped to ^20.19.0 || ^22.12.0 || >=24.0.0
+* Required npm version has been bumped to >=10
+* Required base driver version has been bumped to >=10.0.0-rc.1
+
+### Features
+
+* Update server compatibility ([#1051](https://github.com/appium/WebDriverAgent/issues/1051)) ([f9ea1e5](https://github.com/appium/WebDriverAgent/commit/f9ea1e5e2f5306030387d5293f073b2a6fe658e7))
+
+## [9.15.3](https://github.com/appium/WebDriverAgent/compare/v9.15.2...v9.15.3) (2025-08-12)
+
+### Miscellaneous Chores
+
+* Cache application instances for their PIDs ([#1049](https://github.com/appium/WebDriverAgent/issues/1049)) ([e9cbf64](https://github.com/appium/WebDriverAgent/commit/e9cbf640c21243c304b476a497f33802e0501a7d))
+
+## [9.15.2](https://github.com/appium/WebDriverAgent/compare/v9.15.1...v9.15.2) (2025-08-04)
+
+### Miscellaneous Chores
+
+* bump appium-ios-device to 2.9.0 ([#1047](https://github.com/appium/WebDriverAgent/issues/1047)) ([305019d](https://github.com/appium/WebDriverAgent/commit/305019d4dde89853e44c58170e17ec23c89de2f3))
+
+## [9.15.1](https://github.com/appium/WebDriverAgent/compare/v9.15.0...v9.15.1) (2025-07-17)
+
+### Miscellaneous Chores
+
+* Remove the redundant check after activating the system app ([#1043](https://github.com/appium/WebDriverAgent/issues/1043)) ([33ccba1](https://github.com/appium/WebDriverAgent/commit/33ccba1ab3bc2980349f8553fd30aa5b08141b6b))
+
+## [9.15.0](https://github.com/appium/WebDriverAgent/compare/v9.14.6...v9.15.0) (2025-07-10)
+
+### Features
+
+* HTTPS support for wda-client if webDriverAgentUrl is set ([#1042](https://github.com/appium/WebDriverAgent/issues/1042)) ([f7c4193](https://github.com/appium/WebDriverAgent/commit/f7c41939c793cdbc62e9c14d8eb91e06957bb566))
+
+## [9.14.6](https://github.com/appium/WebDriverAgent/compare/v9.14.5...v9.14.6) (2025-06-24)
+
+### Miscellaneous Chores
+
+* add missing arch ([#1039](https://github.com/appium/WebDriverAgent/issues/1039)) ([a8dd958](https://github.com/appium/WebDriverAgent/commit/a8dd958bd92ef685bc1798ec04e92080b798d7d2))
+
+## [9.14.5](https://github.com/appium/WebDriverAgent/compare/v9.14.4...v9.14.5) (2025-06-24)
+
+### Miscellaneous Chores
+
+* keep entire app for simulators ([d2bbcc6](https://github.com/appium/WebDriverAgent/commit/d2bbcc6d7af6b8eea076e24cd18429b74eeaffd6))
+
+## [9.14.4](https://github.com/appium/WebDriverAgent/compare/v9.14.3...v9.14.4) (2025-06-23)
+
+### Miscellaneous Chores
+
+* include wda sim prebuilt for gh release ([#1038](https://github.com/appium/WebDriverAgent/issues/1038)) ([4423ecb](https://github.com/appium/WebDriverAgent/commit/4423ecb4f23c50343d8ffbf56a7753b985cbab81))
+
+## [9.14.3](https://github.com/appium/WebDriverAgent/compare/v9.14.2...v9.14.3) (2025-06-13)
+
+### Miscellaneous Chores
+
+* **deps-dev:** bump sinon from 20.0.0 to 21.0.0 ([#1034](https://github.com/appium/WebDriverAgent/issues/1034)) ([5b205f4](https://github.com/appium/WebDriverAgent/commit/5b205f493f35cd1744cf9e33bce21e0f9e7c3bea))
+
+## [9.14.2](https://github.com/appium/WebDriverAgent/compare/v9.14.1...v9.14.2) (2025-06-10)
+
+### Miscellaneous Chores
+
+* **deps-dev:** bump @types/node from 22.15.31 to 24.0.0 ([#1033](https://github.com/appium/WebDriverAgent/issues/1033)) ([e9705d9](https://github.com/appium/WebDriverAgent/commit/e9705d964e63222daaf0710bd3b860ca2ba6850f))
+
+## [9.14.1](https://github.com/appium/WebDriverAgent/compare/v9.14.0...v9.14.1) (2025-06-09)
+
+### Miscellaneous Chores
+
+* add -Wno-reserved-identifier option ([#1032](https://github.com/appium/WebDriverAgent/issues/1032)) ([005dc21](https://github.com/appium/WebDriverAgent/commit/005dc216d9f41757763fe5b1714b68697fa8ee30))
+
+## [9.14.0](https://github.com/appium/WebDriverAgent/compare/v9.13.0...v9.14.0) (2025-06-09)
+
+### Features
+
+* add minimum and maximum value attributes to page source ([#1031](https://github.com/appium/WebDriverAgent/issues/1031)) ([0e4e7e7](https://github.com/appium/WebDriverAgent/commit/0e4e7e7c483b9196edae576481f4e37f99fc8705))
+
+## [9.13.0](https://github.com/appium/WebDriverAgent/compare/v9.12.0...v9.13.0) (2025-06-05)
+
+### Features
+
+* expose nativeFrame attribute in XML page source ([#1029](https://github.com/appium/WebDriverAgent/issues/1029)) ([5b56a45](https://github.com/appium/WebDriverAgent/commit/5b56a453f836cbc4358ce24ae43032658467c35c))
+
+## [9.12.0](https://github.com/appium/WebDriverAgent/compare/v9.11.0...v9.12.0) (2025-06-04)
+
+### Features
+
+* add accessibility traits to XML page source ([#1028](https://github.com/appium/WebDriverAgent/issues/1028)) ([2df6649](https://github.com/appium/WebDriverAgent/commit/2df6649cb532d65a8c14633591b76c90185644cb))
+
+## [9.11.0](https://github.com/appium/WebDriverAgent/compare/v9.10.1...v9.11.0) (2025-06-03)
+
+### Features
+
+* Add includeHittableInSource setting for including real hittable attribute in XML source ([#1026](https://github.com/appium/WebDriverAgent/issues/1026)) ([0fa4e74](https://github.com/appium/WebDriverAgent/commit/0fa4e7417404b5975445d381d111753fe681edd4))
+
+## [9.10.1](https://github.com/appium/WebDriverAgent/compare/v9.10.0...v9.10.1) (2025-05-30)
+
+### Miscellaneous Chores
+
+* Make sure the same import style is used everywhere ([#1024](https://github.com/appium/WebDriverAgent/issues/1024)) ([1c50072](https://github.com/appium/WebDriverAgent/commit/1c50072457a8b82eec3684029386ccfa9432eccc))
+
+## [9.10.0](https://github.com/appium/WebDriverAgent/compare/v9.9.0...v9.10.0) (2025-05-27)
+
+### Features
+
+* Add accessibility traits of the element ([#1020](https://github.com/appium/WebDriverAgent/issues/1020)) ([9465aaf](https://github.com/appium/WebDriverAgent/commit/9465aafd5e81ef57be7f78e9f2e188d3c1ba1bee))
+
+### Bug Fixes
+
+* Use native snapshots if hittable attribute is requested in xPath ([#1023](https://github.com/appium/WebDriverAgent/issues/1023)) ([49d26cb](https://github.com/appium/WebDriverAgent/commit/49d26cb02a8515d1a1b52b65b7cb65512dfd749b))
+
+## [9.9.0](https://github.com/appium/WebDriverAgent/compare/v9.8.0...v9.9.0) (2025-05-26)
+
+### Features
+
+* Use another snapshotting mechanism for the hittable attribute calculation ([#1022](https://github.com/appium/WebDriverAgent/issues/1022)) ([13c9f45](https://github.com/appium/WebDriverAgent/commit/13c9f453d890ad9b78fa7c47728ebae33880966a))
+
+## [9.8.0](https://github.com/appium/WebDriverAgent/compare/v9.7.1...v9.8.0) (2025-05-21)
+
+### Features
+
+* Add a native frame property of the element ([#1017](https://github.com/appium/WebDriverAgent/issues/1017)) ([09214c4](https://github.com/appium/WebDriverAgent/commit/09214c4228ed5a49c02adead452cb0bb8dd83b6d))
+
+## [9.7.1](https://github.com/appium/WebDriverAgent/compare/v9.7.0...v9.7.1) (2025-05-21)
+
+### Miscellaneous Chores
+
+* **deps-dev:** bump conventional-changelog-conventionalcommits ([#1019](https://github.com/appium/WebDriverAgent/issues/1019)) ([7108f7f](https://github.com/appium/WebDriverAgent/commit/7108f7f79575a1758bc7f05bd4ef790fd7694784))
+
+## [9.7.0](https://github.com/appium/WebDriverAgent/compare/v9.6.3...v9.7.0) (2025-05-20)
+
+### Features
+
+* add placeholderValue to page source tree ([#1016](https://github.com/appium/WebDriverAgent/issues/1016)) ([509c207](https://github.com/appium/WebDriverAgent/commit/509c207b1366dd8582ba273edcdf77bfb30f53c9))
+
+## [9.6.3](https://github.com/appium/WebDriverAgent/compare/v9.6.2...v9.6.3) (2025-05-18)
+
+### Miscellaneous Chores
+
+* Move the FBDoesElementSupportInnerText helper to a separate utility file ([#1018](https://github.com/appium/WebDriverAgent/issues/1018)) ([f17b07d](https://github.com/appium/WebDriverAgent/commit/f17b07d03abb6c2100405fda04326b7c35bfb48b))
+
+## [9.6.2](https://github.com/appium/WebDriverAgent/compare/v9.6.1...v9.6.2) (2025-05-01)
+
+### Bug Fixes
+
+* release element screenshot data ([#1013](https://github.com/appium/WebDriverAgent/issues/1013)) ([a85f327](https://github.com/appium/WebDriverAgent/commit/a85f3271991556941234fbc888528051b1569db1))
+
+## [9.6.1](https://github.com/appium/WebDriverAgent/compare/v9.6.0...v9.6.1) (2025-04-22)
+
+### Bug Fixes
+
+* allow setting precise resolution for the MJPEG stream ([#1009](https://github.com/appium/WebDriverAgent/issues/1009)) ([3f86eda](https://github.com/appium/WebDriverAgent/commit/3f86edafda42d955929f7cca870e2b8da54ae930))
+
 ## [9.6.0](https://github.com/appium/WebDriverAgent/compare/v9.5.2...v9.6.0) (2025-04-20)
 
 ### Features

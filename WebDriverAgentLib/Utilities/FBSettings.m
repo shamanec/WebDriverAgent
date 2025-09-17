@@ -3,8 +3,7 @@
  * All rights reserved.
  *
  * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * LICENSE file in the root directory of this source tree.
  */
 
 #import "FBSettings.h"
@@ -36,3 +35,6 @@ NSString* const FB_SETTING_RESPECT_SYSTEM_ALERTS = @"respectSystemAlerts";
 NSString* const FB_SETTING_USE_CLEAR_TEXT_SHORTCUT = @"useClearTextShortcut";
 NSString* const FB_SETTING_LIMIT_XPATH_CONTEXT_SCOPE = @"limitXPathContextScope";
 NSString* const FB_SETTING_AUTO_CLICK_ALERT_SELECTOR = @"autoClickAlertSelector";
+NSString* const FB_SETTING_INCLUDE_HITTABLE_IN_PAGE_SOURCE = @"includeHittableInPageSource";
+NSString* const FB_SETTING_INCLUDE_NATIVE_FRAME_IN_PAGE_SOURCE = @"includeNativeFrameInPageSource";
+NSString* const FB_SETTING_INCLUDE_MIN_MAX_VALUE_IN_PAGE_SOURCE = @"includeMinMaxValueInPageSource";
