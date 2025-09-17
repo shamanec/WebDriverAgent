@@ -3,8 +3,7 @@
  * All rights reserved.
  *
  * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * LICENSE file in the root directory of this source tree.
  */
 
 #import "FBXCAXClientProxy.h"
@@ -14,8 +13,15 @@
 #import "FBMacros.h"
 #import "XCAXClient_iOS+FBSnapshotReqParams.h"
 #import "XCUIDevice.h"
+#import "XCUIApplication.h"
 
 static id FBAXClient = nil;
+
+@interface FBXCAXClientProxy ()
+
+@property (nonatomic) NSMutableDictionary<NSNumber *, XCUIApplication *> *appsCache;
+
+@end
 
 @implementation FBXCAXClientProxy
 
@@ -25,6 +31,7 @@ static id FBAXClient = nil;
   static dispatch_once_t onceToken;
   dispatch_once(&onceToken, ^{
     instance = [[self alloc] init];
+    instance.appsCache = [NSMutableDictionary dictionary];
     FBAXClient = [XCUIDevice.sharedDevice accessibilityInterface];
   });
   return instance;
@@ -85,7 +92,28 @@ static id FBAXClient = nil;
 
 - (XCUIApplication *)monitoredApplicationWithProcessIdentifier:(int)pid
 {
-  return [[FBAXClient applicationProcessTracker] monitoredApplicationWithProcessIdentifier:pid];
+  NSMutableSet *terminatedAppIds = [NSMutableSet set];
+  for (NSNumber *appPid in self.appsCache) {
+    if (![self.appsCache[appPid] running]) {
+      [terminatedAppIds addObject:appPid];
+    }
+  }
+  for (NSNumber *appPid in terminatedAppIds) {
+    [self.appsCache removeObjectForKey:appPid];
+  }
+
+  XCUIApplication *result = [self.appsCache objectForKey:@(pid)];
+  if (nil != result) {
+    return result;
+  }
+
+  XCUIApplication *app = [[FBAXClient applicationProcessTracker]
+                          monitoredApplicationWithProcessIdentifier:pid];
+  if (nil == app) {
+    return nil;
+  }
+  [self.appsCache setObject:app forKey:@(pid)];
+  return app;
 }
 
 @end

@@ -3,13 +3,13 @@
  * All rights reserved.
  *
  * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * LICENSE file in the root directory of this source tree.
  */
 
 #import "XCUIElement+FBWebDriverAttributes.h"
 
 #import "FBElementTypeTransformer.h"
+#import "FBElementHelpers.h"
 #import "FBLogger.h"
 #import "FBMacros.h"
 #import "FBXCElementSnapshotWrapper.h"
@@ -21,6 +21,8 @@
 #import "FBElementUtils.h"
 #import "XCTestPrivateSymbols.h"
 #import "XCUIHitPointResult.h"
+#import "FBAccessibilityTraits.h"
+#import "XCUIElement+FBMinMax.h"
 
 #define BROKEN_RECT CGRectMake(-1, -1, 0, 0)
 
@@ -28,6 +30,10 @@
 
 - (id<FBXCElementSnapshot>)fb_snapshotForAttributeName:(NSString *)name
 {
+  // https://github.com/appium/appium-xcuitest-driver/pull/2565
+  if ([name isEqualToString:FBStringify(XCUIElement, isWDHittable)]) {
+    return [self fb_nativeSnapshot];
+  }
   // https://github.com/appium/appium-xcuitest-driver/issues/2552
   BOOL isValueRequest = [name isEqualToString:FBStringify(XCUIElement, wdValue)];
   if ([self isKindOfClass:XCUIApplication.class] && !isValueRequest) {
@@ -70,13 +76,14 @@
   return [self valueForKey:[FBElementUtils wdAttributeNameForAttributeName:name]];
 }
 
-- (BOOL)fb_supportsInnerText
+- (NSNumber *)wdMinValue
 {
-  XCUIElementType elementType = self.elementType;
-  return elementType == XCUIElementTypeTextView
-    || elementType == XCUIElementTypeTextField
-    || elementType == XCUIElementTypeSearchField
-    || elementType == XCUIElementTypeSecureTextField;
+  return self.fb_minValue;
+}
+
+- (NSNumber *)wdMaxValue
+{
+  return self.fb_maxValue;
 }
 
 - (NSString *)wdValue
@@ -91,7 +98,7 @@
     value = FBFirstNonEmptyValue(value, isSelected);
   } else if (elementType == XCUIElementTypeSwitch) {
     value = @([value boolValue]);
-  } else if (self.fb_supportsInnerText) {
+  } else if (FBDoesElementSupportInnerText(elementType)) {
     NSString *placeholderValue = self.placeholderValue;
     value = FBFirstNonEmptyValue(value, placeholderValue);
   }
@@ -128,7 +135,7 @@
 
 - (NSString *)wdPlaceholderValue
 {
-  return self.fb_supportsInnerText
+  return FBDoesElementSupportInnerText(self.elementType)
     ? self.placeholderValue
     : FBTransferEmptyStringToNil(self.placeholderValue);
 }
@@ -153,6 +160,30 @@
           || isinf(frame.origin.x) || isinf(frame.origin.y))
     ? CGRectIntegral(BROKEN_RECT)
     : CGRectIntegral(frame);
+}
+
+- (CGRect)wdNativeFrame
+{
+  // To avoid confusion regarding the frame returned by `wdFrame`,
+  // the current property is provided to represent the element's
+  // actual rendered frame.
+  return self.frame;
+}
+
+/**
+ Returns a comma-separated string of accessibility traits for the element.
+ This method converts the element's accessibility traits bitmask into human-readable strings
+ using FBAccessibilityTraitsToStringsArray. The traits represent various accessibility
+ characteristics of the element such as Button, Link, Image, etc.
+ You can find the list of possible traits in the Apple documentation:
+ https://developer.apple.com/documentation/uikit/uiaccessibilitytraits?language=objc
+ 
+ @return A comma-separated string of accessibility traits, or an empty string if no traits are set
+ */
+- (NSString *)wdTraits
+{
+  NSArray<NSString *> *traits = FBAccessibilityTraitsToStringsArray(self.snapshot.traits);
+  return [traits componentsJoinedByString:@", "];
 }
 
 - (BOOL)isWDVisible

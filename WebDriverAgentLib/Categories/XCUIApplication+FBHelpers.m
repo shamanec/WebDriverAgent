@@ -3,8 +3,7 @@
  * All rights reserved.
  *
  * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * LICENSE file in the root directory of this source tree.
  */
 
 #import "XCUIApplication+FBHelpers.h"
@@ -37,6 +36,7 @@
 #import "XCUIElement+FBUtilities.h"
 #import "XCUIElement+FBWebDriverAttributes.h"
 #import "XCUIElementQuery.h"
+#import "FBElementHelpers.h"
 
 static NSString* const FBUnknownBundleId = @"unknown";
 
@@ -45,7 +45,11 @@ static NSString* const FBExclusionAttributeEnabled = @"enabled";
 static NSString* const FBExclusionAttributeVisible = @"visible";
 static NSString* const FBExclusionAttributeAccessible = @"accessible";
 static NSString* const FBExclusionAttributeFocused = @"focused";
-
+static NSString* const FBExclusionAttributePlaceholderValue = @"placeholderValue";
+static NSString* const FBExclusionAttributeNativeFrame = @"nativeFrame";
+static NSString* const FBExclusionAttributeTraits = @"traits";
+static NSString* const FBExclusionAttributeMinValue = @"minValue";
+static NSString* const FBExclusionAttributeMaxValue = @"maxValue";
 
 _Nullable id extractIssueProperty(id issue, NSString *propertyName) {
   SEL selector = NSSelectorFromString(propertyName);
@@ -201,28 +205,21 @@ NSDictionary<NSString *, NSString *> *customExclusionAttributesMap(void) {
   info[@"label"] = FBValueOrNull(wrappedSnapshot.wdLabel);
   info[@"rect"] = wrappedSnapshot.wdRect;
   
-  NSDictionary<NSString *, NSString * (^)(void)> *attributeBlocks = @{
-      FBExclusionAttributeFrame: ^{
-          return NSStringFromCGRect(wrappedSnapshot.wdFrame);
-      },
-      FBExclusionAttributeEnabled: ^{
-          return [@([wrappedSnapshot isWDEnabled]) stringValue];
-      },
-      FBExclusionAttributeVisible: ^{
-          return [@([wrappedSnapshot isWDVisible]) stringValue];
-      },
-      FBExclusionAttributeAccessible: ^{
-          return [@([wrappedSnapshot isWDAccessible]) stringValue];
-      },
-      FBExclusionAttributeFocused: ^{
-          return [@([wrappedSnapshot isWDFocused]) stringValue];
-      }
-  };
+  NSDictionary<NSString *, NSString *(^)(void)> *attributeBlocks = [self fb_attributeBlockMapForWrappedSnapshot:wrappedSnapshot];
+
+  NSSet *nonPrefixedKeys = [NSSet setWithObjects:
+                            FBExclusionAttributeFrame,
+                            FBExclusionAttributePlaceholderValue,
+                            FBExclusionAttributeNativeFrame,
+                            FBExclusionAttributeTraits,
+                            FBExclusionAttributeMinValue,
+                            FBExclusionAttributeMaxValue,
+                            nil];
 
   for (NSString *key in attributeBlocks) {
       if (excludedAttributes == nil || ![excludedAttributes containsObject:key]) {
           NSString *value = ((NSString * (^)(void))attributeBlocks[key])();
-          if ([key isEqualToString:FBExclusionAttributeFrame]) {
+          if ([nonPrefixedKeys containsObject:key]) {
               info[key] = value;
           } else {
               info[[NSString stringWithFormat:@"is%@", [key capitalizedString]]] = value;
@@ -246,6 +243,59 @@ NSDictionary<NSString *, NSString *> *customExclusionAttributesMap(void) {
     }
   }
   return info;
+}
+
+// Helper used by `dictionaryForElement:` to assemble attribute value blocks,
+// including both common attributes and conditionally included ones like placeholderValue.
++ (NSDictionary<NSString *, NSString *(^)(void)> *)fb_attributeBlockMapForWrappedSnapshot:(FBXCElementSnapshotWrapper *)wrappedSnapshot
+
+{
+  // Base attributes common to every element
+  NSMutableDictionary<NSString *, id(^)(void)> *blocks =
+  [@{
+    FBExclusionAttributeFrame: ^{
+    return NSStringFromCGRect(wrappedSnapshot.wdFrame);
+  },
+    FBExclusionAttributeNativeFrame: ^{
+    return NSStringFromCGRect(wrappedSnapshot.wdNativeFrame);
+  },
+    FBExclusionAttributeEnabled: ^{
+    return [@([wrappedSnapshot isWDEnabled]) stringValue];
+  },
+    FBExclusionAttributeVisible: ^{
+    return [@([wrappedSnapshot isWDVisible]) stringValue];
+  },
+    FBExclusionAttributeAccessible: ^{
+    return [@([wrappedSnapshot isWDAccessible]) stringValue];
+  },
+    FBExclusionAttributeFocused: ^{
+    return [@([wrappedSnapshot isWDFocused]) stringValue];
+  },
+    FBExclusionAttributeTraits: ^{
+    return wrappedSnapshot.wdTraits;
+  }
+  } mutableCopy];
+  
+  XCUIElementType elementType = wrappedSnapshot.elementType;
+  
+  // Text-input placeholder (only for elements that support inner text)
+  if (FBDoesElementSupportInnerText(elementType)) {
+    blocks[FBExclusionAttributePlaceholderValue] = ^{
+      return (NSString *)FBValueOrNull(wrappedSnapshot.wdPlaceholderValue);
+    };
+  }
+  
+  // Only for elements that support min/max value
+  if (FBDoesElementSupportMinMaxValue(elementType)) {
+    blocks[FBExclusionAttributeMinValue] = ^{
+      return wrappedSnapshot.wdMinValue;
+    };
+    blocks[FBExclusionAttributeMaxValue] = ^{
+      return wrappedSnapshot.wdMaxValue;
+    };
+  }
+  
+  return [blocks copy];
 }
 
 + (NSDictionary *)accessibilityInfoForElement:(id<FBXCElementSnapshot>)snapshot
@@ -570,23 +620,17 @@ NSDictionary<NSString *, NSString *> *customExclusionAttributesMap(void) {
 {
   XCUIApplication *systemApp = self.fb_systemApplication;
   @try {
-    if (!systemApp.running) {
-      [systemApp launch];
-    } else {
+    if (systemApp.running) {
       [systemApp activate];
+    } else {
+      [systemApp launch];
     }
   } @catch (NSException *e) {
     return [[[FBErrorBuilder alloc]
              withDescription:nil == e ? @"Cannot open the home screen" : e.reason]
             buildError:error];
   }
-  return [[[[FBRunLoopSpinner new]
-            timeout:5]
-           timeoutErrorMessage:@"Timeout waiting until the home screen is visible"]
-          spinUntilTrue:^BOOL{
-    return [systemApp fb_isSameAppAs:self.fb_activeApplication];
-  }
-          error:error];
+  return YES;
 }
 
 - (BOOL)fb_isSameAppAs:(nullable XCUIApplication *)otherApp

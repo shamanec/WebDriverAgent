@@ -3,8 +3,7 @@
  * All rights reserved.
  *
  * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * LICENSE file in the root directory of this source tree.
  */
 
 #import "XCUIElementDouble.h"
@@ -19,11 +18,13 @@
 {
   self = [super init];
   if (self) {
-    self.wdFrame = CGRectMake(0, 0, 0, 0);
+    self.wdFrame = CGRectZero;
+    self.wdNativeFrame = CGRectZero;
     self.wdName = @"testName";
     self.wdLabel = @"testLabel";
     self.wdValue = @"magicValue";
     self.wdPlaceholderValue = @"testPlaceholderValue";
+    self.wdTraits = @"testTraits";
     self.wdVisible = YES;
     self.wdAccessible = YES;
     self.wdEnabled = YES;
@@ -92,6 +93,11 @@
 - (id)fb_uid
 {
   return self.wdUID;
+}
+
+- (NSString *)wdTraits
+{
+  return self.wdTraits;
 }
 
 @end

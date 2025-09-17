@@ -3,8 +3,7 @@
  * All rights reserved.
  *
  * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * LICENSE file in the root directory of this source tree.
  */
 
 #import "FBConfiguration.h"
@@ -37,7 +36,7 @@ static BOOL FBShouldUseTestManagerForVisibilityDetection = NO;
 static BOOL FBShouldUseSingletonTestManager = YES;
 static BOOL FBShouldRespectSystemAlerts = NO;
 
-static NSUInteger FBMjpegScalingFactor = 100;
+static CGFloat FBMjpegScalingFactor = 100.0;
 static BOOL FBMjpegShouldFixOrientation = NO;
 static NSUInteger FBMjpegServerScreenshotQuality = 25;
 static NSUInteger FBMjpegServerFramerate = 10;
@@ -61,6 +60,9 @@ static BOOL FBLimitXpathContextScope = YES;
 #if !TARGET_OS_TV
 static UIInterfaceOrientation FBScreenshotOrientation;
 #endif
+static BOOL FBShouldIncludeHittableInPageSource = NO;
+static BOOL FBShouldIncludeNativeFrameInPageSource = NO;
+static BOOL FBShouldIncludeMinMaxValueInPageSource = NO;
 
 @implementation FBConfiguration
 
@@ -149,12 +151,12 @@ static UIInterfaceOrientation FBScreenshotOrientation;
   return DefaultMjpegServerPort;
 }
 
-+ (NSUInteger)mjpegScalingFactor
++ (CGFloat)mjpegScalingFactor
 {
   return FBMjpegScalingFactor;
 }
 
-+ (void)setMjpegScalingFactor:(NSUInteger)scalingFactor {
++ (void)setMjpegScalingFactor:(CGFloat)scalingFactor {
   FBMjpegScalingFactor = scalingFactor;
 }
 
@@ -640,6 +642,36 @@ static UIInterfaceOrientation FBScreenshotOrientation;
     return settings.reduceMotionEnabled;
   }
   return NO;
+}
+
++ (void)setIncludeHittableInPageSource:(BOOL)enabled
+{
+  FBShouldIncludeHittableInPageSource = enabled;
+}
+
++ (BOOL)includeHittableInPageSource
+{
+  return FBShouldIncludeHittableInPageSource;
+}
+
++ (void)setIncludeNativeFrameInPageSource:(BOOL)enabled
+{
+  FBShouldIncludeNativeFrameInPageSource = enabled;
+}
+
++ (BOOL)includeNativeFrameInPageSource
+{
+  return FBShouldIncludeNativeFrameInPageSource;
+}
+
++ (void)setIncludeMinMaxValueInPageSource:(BOOL)enabled
+{
+  FBShouldIncludeMinMaxValueInPageSource = enabled;
+}
+
++ (BOOL)includeMinMaxValueInPageSource
+{
+  return FBShouldIncludeMinMaxValueInPageSource;
 }
 
 @end

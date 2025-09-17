@@ -3,8 +3,7 @@
  * All rights reserved.
  *
  * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * LICENSE file in the root directory of this source tree.
  */
 
 #import "FBXPath.h"
@@ -17,11 +16,15 @@
 #import "FBXMLGenerationOptions.h"
 #import "FBXCElementSnapshotWrapper+Helpers.h"
 #import "NSString+FBXMLSafeString.h"
+#import "XCUIApplication.h"
 #import "XCUIElement.h"
 #import "XCUIElement+FBCaching.h"
 #import "XCUIElement+FBUtilities.h"
 #import "XCUIElement+FBWebDriverAttributes.h"
 #import "XCTestPrivateSymbols.h"
+#import "FBElementHelpers.h"
+#import "FBXCAXClientProxy.h"
+#import "FBXCAccessibilityElement.h"
 
 
 @interface FBElementAttribute : NSObject
@@ -32,6 +35,7 @@
 + (nullable NSString *)valueForElement:(id<FBElement>)element;
 
 + (int)recordWithWriter:(xmlTextWriterPtr)writer forElement:(id<FBElement>)element;
++ (int)recordWithWriter:(xmlTextWriterPtr)writer forValue:(nullable NSString *)value;
 
 + (NSArray<Class> *)supportedAttributes;
 
@@ -97,11 +101,33 @@
 
 @property (nonatomic, nonnull, readonly) NSString* indexValue;
 
-+ (int)recordWithWriter:(xmlTextWriterPtr)writer forValue:(NSString *)value;
+@end
+
+@interface FBApplicationBundleIdAttribute : FBElementAttribute
+
+@end
+
+@interface FBApplicationPidAttribute : FBElementAttribute
 
 @end
 
 @interface FBPlaceholderValueAttribute : FBElementAttribute
+
+@end
+
+@interface FBNativeFrameAttribute : FBElementAttribute
+
+@end
+
+@interface FBTraitsAttribute : FBElementAttribute
+
+@end
+
+@interface FBMinValueAttribute : FBElementAttribute
+
+@end
+
+@interface FBMaxValueAttribute : FBElementAttribute
 
 @end
 
@@ -146,7 +172,11 @@ static NSString *const topNodeIndexPath = @"top";
     }
 
     if (rc >= 0) {
-      rc = [self xmlRepresentationWithRootElement:[self snapshotWithRoot:root]
+      [self waitUntilStableWithElement:root];
+      // If 'includeHittableInPageSource' setting is enabled, then use native snapshots
+      // to calculate a more accurate value for the 'hittable' attribute.
+      rc = [self xmlRepresentationWithRootElement:[self snapshotWithRoot:root
+                                                        useNative:FBConfiguration.includeHittableInPageSource]
                                            writer:writer
                                      elementStore:nil
                                             query:nil
@@ -196,17 +226,23 @@ static NSString *const topNodeIndexPath = @"top";
   int rc = xmlTextWriterStartDocument(writer, NULL, _UTF8Encoding, NULL);
   id<FBXCElementSnapshot> lookupScopeSnapshot = nil;
   id<FBXCElementSnapshot> contextRootSnapshot = nil;
+  BOOL useNativeSnapshot = nil == xpathQuery
+    ? NO
+    : [[self.class elementAttributesWithXPathQuery:xpathQuery] containsObject:FBHittableAttribute.class];
   if (rc < 0) {
     [FBLogger logFmt:@"Failed to invoke libxml2>xmlTextWriterStartDocument. Error code: %d", rc];
   } else {
+    [self waitUntilStableWithElement:root];
     if (FBConfiguration.limitXpathContextScope) {
-      lookupScopeSnapshot = [self snapshotWithRoot:root];
+      lookupScopeSnapshot = [self snapshotWithRoot:root useNative:useNativeSnapshot];
     } else {
       if ([root isKindOfClass:XCUIElement.class]) {
-        lookupScopeSnapshot = [self snapshotWithRoot:[(XCUIElement *)root application]];
+        lookupScopeSnapshot = [self snapshotWithRoot:[(XCUIElement *)root application]
+                                           useNative:useNativeSnapshot];
         contextRootSnapshot = [root isKindOfClass:XCUIApplication.class]
           ? nil
-          : ([(XCUIElement *)root lastSnapshot] ?: [(XCUIElement *)root fb_customSnapshot]);
+          : ([(XCUIElement *)root lastSnapshot] ?: [self snapshotWithRoot:(XCUIElement *)root
+                                                                useNative:useNativeSnapshot]);
       } else {
         lookupScopeSnapshot = (id<FBXCElementSnapshot>)root;
         contextRootSnapshot = nil == lookupScopeSnapshot.parent ? nil : (id<FBXCElementSnapshot>)root;
@@ -347,9 +383,20 @@ static NSString *const topNodeIndexPath = @"top";
   NSMutableSet<Class> *includedAttributes;
   if (nil == query) {
     includedAttributes = [NSMutableSet setWithArray:FBElementAttribute.supportedAttributes];
-    // The hittable attribute is expensive to calculate for each snapshot item
-    // thus we only include it when requested by an xPath query
-    [includedAttributes removeObject:FBHittableAttribute.class];
+    if (!FBConfiguration.includeHittableInPageSource) {
+      // The hittable attribute is expensive to calculate for each snapshot item
+      // thus we only include it when requested explicitly
+      [includedAttributes removeObject:FBHittableAttribute.class];
+    }
+    if (!FBConfiguration.includeNativeFrameInPageSource) {
+      // Include nativeFrame only when requested
+      [includedAttributes removeObject:FBNativeFrameAttribute.class];
+    }
+    if (!FBConfiguration.includeMinMaxValueInPageSource) {
+      // minValue/maxValue are retrieved from private APIs and may be slow on deep trees
+      [includedAttributes removeObject:FBMinValueAttribute.class];
+      [includedAttributes removeObject:FBMaxValueAttribute.class];
+    }
     if (nil != excludedAttributes) {
       for (NSString *excludedAttributeName in excludedAttributes) {
         for (Class supportedAttribute in FBElementAttribute.supportedAttributes) {
@@ -413,6 +460,16 @@ static NSString *const topNodeIndexPath = @"top";
     if (includedAttributes && ![includedAttributes containsObject:attributeCls]) {
       continue;
     }
+    // Text-input placeholder (only for elements that support inner text)
+    if ((attributeCls == FBPlaceholderValueAttribute.class) &&
+        !FBDoesElementSupportInnerText(element.elementType)) {
+      continue;
+    }
+    // Only for elements that support min/max value
+    if ((attributeCls == FBMinValueAttribute.class || attributeCls == FBMaxValueAttribute.class) &&
+        !FBDoesElementSupportMinMaxValue(element.elementType)) {
+      continue;
+    }
     int rc = [attributeCls recordWithWriter:writer
                                  forElement:[FBXCElementSnapshotWrapper ensureWrapped:element]];
     if (rc < 0) {
@@ -423,6 +480,27 @@ static NSString *const topNodeIndexPath = @"top";
   if (nil != indexPath) {
     // index path is the special case
     return [FBInternalIndexAttribute recordWithWriter:writer forValue:indexPath];
+  }
+  if (element.elementType == XCUIElementTypeApplication) {
+    // only record process identifier and bundle identifier for the application element
+    int pid = [element.accessibilityElement processIdentifier];
+    if (pid > 0) {
+      int rc = [FBApplicationPidAttribute recordWithWriter:writer
+                                                  forValue:[NSString stringWithFormat:@"%d", pid]];
+      if (rc < 0) {
+        return rc;
+      }
+      XCUIApplication *app = [[FBXCAXClientProxy sharedClient]
+                              monitoredApplicationWithProcessIdentifier:pid];
+      NSString *bundleID = [app bundleID];
+      if (nil != bundleID) {
+        rc = [FBApplicationBundleIdAttribute recordWithWriter:writer
+                                                     forValue:bundleID];
+        if (rc < 0) {
+          return rc;
+        }
+      }
+    }
   }
   return 0;
 }
@@ -483,17 +561,27 @@ static NSString *const topNodeIndexPath = @"top";
 }
 
 + (id<FBXCElementSnapshot>)snapshotWithRoot:(id<FBElement>)root
+                                  useNative:(BOOL)useNative
 {
   if (![root isKindOfClass:XCUIElement.class]) {
     return (id<FBXCElementSnapshot>)root;
   }
 
-  // If the app is not idle state while we retrieve the visiblity state
-  // then the snapshot retrieval operation might freeze and time out
-  [[(XCUIElement *)root application] fb_waitUntilStableWithTimeout:FBConfiguration.animationCoolOffTimeout];
+  if (useNative) {
+    return [(XCUIElement *)root fb_nativeSnapshot];
+  }
   return [root isKindOfClass:XCUIApplication.class]
     ? [(XCUIElement *)root fb_standardSnapshot]
     : [(XCUIElement *)root fb_customSnapshot];
+}
+
++ (void)waitUntilStableWithElement:(id<FBElement>)root
+{
+  if ([root isKindOfClass:XCUIElement.class]) {
+    // If the app is not idle state while we retrieve the visiblity state
+    // then the snapshot retrieval operation might freeze and time out
+    [[(XCUIElement *)root application] fb_waitUntilStableWithTimeout:FBConfiguration.animationCoolOffTimeout];
+  }
 }
 
 @end
@@ -527,6 +615,11 @@ static NSString *const FBAbstractMethodInvocationException = @"AbstractMethodInv
 + (int)recordWithWriter:(xmlTextWriterPtr)writer forElement:(id<FBElement>)element
 {
   NSString *value = [self valueForElement:element];
+  return [self recordWithWriter:writer forValue:value];
+}
+
++ (int)recordWithWriter:(xmlTextWriterPtr)writer forValue:(nullable NSString *)value
+{
   if (nil == value) {
     // Skip the attribute if the value equals to nil
     return 0;
@@ -561,6 +654,10 @@ static NSString *const FBAbstractMethodInvocationException = @"AbstractMethodInv
            FBIndexAttribute.class,
            FBHittableAttribute.class,
            FBPlaceholderValueAttribute.class,
+           FBTraitsAttribute.class,
+           FBNativeFrameAttribute.class,
+           FBMinValueAttribute.class,
+           FBMaxValueAttribute.class,
           ];
 }
 
@@ -768,22 +865,25 @@ static NSString *const FBAbstractMethodInvocationException = @"AbstractMethodInv
   return kXMLIndexPathKey;
 }
 
-+ (int)recordWithWriter:(xmlTextWriterPtr)writer forValue:(NSString *)value
-{
-  if (nil == value) {
-    // Skip the attribute if the value equals to nil
-    return 0;
-  }
-  int rc = xmlTextWriterWriteAttribute(writer,
-                                       (xmlChar *)[[FBXPath safeXmlStringWithString:[self name]] UTF8String],
-                                       (xmlChar *)[[FBXPath safeXmlStringWithString:value] UTF8String]);
-  if (rc < 0) {
-    [FBLogger logFmt:@"Failed to invoke libxml2>xmlTextWriterWriteAttribute(%@='%@'). Error code: %d", [self name], value, rc];
-  }
-  return rc;
-}
 @end
 
+@implementation FBApplicationBundleIdAttribute : FBElementAttribute
+
++ (NSString *)name
+{
+  return @"bundleId";
+}
+
+@end
+
+@implementation FBApplicationPidAttribute : FBElementAttribute
+
++ (NSString *)name
+{
+  return @"processId";
+}
+
+@end
 
 @implementation FBPlaceholderValueAttribute
 
@@ -795,6 +895,60 @@ static NSString *const FBAbstractMethodInvocationException = @"AbstractMethodInv
 + (NSString *)valueForElement:(id<FBElement>)element
 {
   return element.wdPlaceholderValue;
+}
+@end
+
+@implementation FBNativeFrameAttribute
+
++ (NSString *)name
+{
+  return @"nativeFrame";
+}
+
++ (NSString *)valueForElement:(id<FBElement>)element
+{
+  return NSStringFromCGRect(element.wdNativeFrame);
+}
+@end
+
+@implementation FBTraitsAttribute
+
++ (NSString *)name
+{
+  return @"traits";
+}
+
++ (NSString *)valueForElement:(id<FBElement>)element
+{
+  return element.wdTraits;
+}
+
+@end
+
+@implementation FBMinValueAttribute
+
++ (NSString *)name
+{
+  return @"minValue";
+}
+
++ (NSString *)valueForElement:(id<FBElement>)element
+{
+  return [element.wdMinValue stringValue];
+}
+
+@end
+
+@implementation FBMaxValueAttribute
+
++ (NSString *)name
+{
+  return @"maxValue";
+}
+
++ (NSString *)valueForElement:(id<FBElement>)element
+{
+  return [element.wdMaxValue stringValue];
 }
 
 @end

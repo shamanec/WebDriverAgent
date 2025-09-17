@@ -3,13 +3,12 @@
  * All rights reserved.
  *
  * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * LICENSE file in the root directory of this source tree.
  */
 
 #import <XCTest/XCTest.h>
 #import <WebDriverAgentLib/FBElement.h>
-#import "FBXCElementSnapshot.h"
+#import <WebDriverAgentLib/FBXCElementSnapshot.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -36,7 +35,7 @@ NS_ASSUME_NONNULL_BEGIN
 /**
  Gets the most recent snapshot of the current element. The element will be
  automatically resolved if the snapshot is not available yet.
- Calls to this method mutate the `lastSnapshot` instance property..
+ Calls to this method mutate the `lastSnapshot` instance property.
  The maximum snapshot tree depth is set by `FBConfiguration.snapshotMaxDepth`
 
  Snapshot specifics:
@@ -48,6 +47,21 @@ NS_ASSUME_NONNULL_BEGIN
  @throws FBStaleElementException if the element is not present in DOM and thus no snapshot could be made
  */
 - (id<FBXCElementSnapshot>)fb_customSnapshot;
+
+/**
+ Gets the most recent snapshot of the current element. The element will be
+ automatically resolved if the snapshot is not available yet.
+ Calls to this method mutate the `lastSnapshot` instance property.
+ The maximum snapshot tree depth is set by `FBConfiguration.snapshotMaxDepth`
+
+ Snapshot specifics:
+ - Less performant in comparison to the standard one
+ - The `hittable` property calculation is aligned with the native calculation logic
+
+ @return The recent snapshot of the element
+ @throws FBStaleElementException if the element is not present in DOM and thus no snapshot could be made
+ */
+- (id<FBXCElementSnapshot>)fb_nativeSnapshot;
 
 /**
  Extracts the cached element snapshot from its query.
