@@ -8,6 +8,8 @@
 
 #import "FBGadsCommands.h"
 
+@import UniformTypeIdentifiers;
+
 #import "FBCapabilities.h"
 #import "FBConfiguration.h"
 #import "FBProtocolHelpers.h"
@@ -18,6 +20,12 @@
 #import "FBXCodeCompatibility.h"
 #import "FBCommandStatus.h"
 #import "FBRoute.h"
+#import "FBResponsePayload.h"
+#import "FBRouteRequest.h"
+#import "FBScreenshot.h"
+#import "XCUIScreen.h"
+#import "FBImageProcessor.h"
+
 
 @implementation FBGadsCommands
 
@@ -29,6 +37,9 @@
   @[
     [[FBRoute GET:@"/appium/settings"].withoutSession respondWithTarget:self action:@selector(handleGetSettingsGads:)],
     [[FBRoute POST:@"/appium/settings"].withoutSession respondWithTarget:self action:@selector(handleSetSettingsGads:)],
+    [[FBRoute GET:@"/screenshot-hq"].withoutSession respondWithTarget:self action:@selector(takeScreenshotGadsHighQuality:)],
+    [[FBRoute GET:@"/screenshot"].withoutSession respondWithTarget:self action:@selector(takeScreenshotGads:)],
+    [[FBRoute GET:@"/screenshot-lq"].withoutSession respondWithTarget:self action:@selector(takeScreenshotGadsLowQuality:)],
   ];
 }
 
@@ -228,6 +239,125 @@
 #endif
 
   return [self handleGetSettingsGads:request];
+}
+
+/**
+ * No-session version of screenshot capture with maximum quality
+ *
+ * This method provides high-quality screenshot capture without requiring an active session.
+ * Uses full compression quality (1.0) for maximum image fidelity.
+ *
+ * Direct JPEG output without additional processing
+ *
+ * Use case: When you need the highest quality screenshot for detailed analysis
+ * or when file size is not a concern.
+ */
++ (id<FBResponsePayload>)takeScreenshotGadsHighQuality:(FBRouteRequest *)request
+{
+  NSError *error;
+    CGFloat compressionQuality = 1;
+    long long mainScreenID = [XCUIScreen.mainScreen displayID];
+
+    NSData *screenshotData = [FBScreenshot takeInOriginalResolutionWithScreenID:mainScreenID
+                                                             compressionQuality:compressionQuality
+                                                                            uti:UTTypeJPEG
+                                                                        timeout:1
+                                                                          error:&error];
+    if (nil == screenshotData) {
+      return FBResponseWithStatus([FBCommandStatus unableToCaptureScreenErrorWithMessage:error.description traceback:nil]);
+    }
+
+    NSString *screenshot = [screenshotData base64EncodedStringWithOptions:0];
+    return FBResponseWithObject(@{@"screenshot": screenshot});
+}
+
+/**
+ * No-session version of screenshot capture with balanced quality and scaling
+ *
+ * This method provides screenshot capture without requiring an active session,
+ * with intelligent scaling to balance quality and file size.
+ *
+ * Moderate compression (0.7) for good quality with reasonable file size
+ * Smart scaling using sqrt(0.8) to compensate for double scaling in FBImageProcessor
+ * Uses FBImageProcessor following the same pattern as MJPEG server
+ *
+ * Notes:
+ * - Uses sqrt(0.8) scaling factor to achieve approximately 80% linear dimensions
+ * - FBImageProcessor applies scaling to both size and format.scale, hence the sqrt compensation
+ *
+ * Use case: Standard screenshot endpoint with good balance of quality and performance.
+ */
++ (id<FBResponsePayload>)takeScreenshotGads:(FBRouteRequest *)request
+{
+    NSError *error;
+    long long mainScreenID = [XCUIScreen.mainScreen displayID];
+
+    NSData *screenshotData = [FBScreenshot takeInOriginalResolutionWithScreenID:mainScreenID
+                                                             compressionQuality:0.7
+                                                                            uti:UTTypeJPEG
+                                                                        timeout:1
+                                                                          error:&error];
+    if (nil == screenshotData) {
+      return FBResponseWithStatus([FBCommandStatus unableToCaptureScreenErrorWithMessage:error.description traceback:nil]);
+    }
+
+    CGFloat scalingFactor = sqrt(0.8);
+    FBImageProcessor *imageProcessor = [[FBImageProcessor alloc] init];
+    NSData *scaledImageData = [imageProcessor scaledImageWithData:screenshotData
+                                                              uti:UTTypeJPEG
+                                                    scalingFactor:scalingFactor
+                                               compressionQuality:0.7
+                                                            error:&error];
+
+    if (nil == scaledImageData) {
+      return FBResponseWithStatus([FBCommandStatus unableToCaptureScreenErrorWithMessage:error.description traceback:nil]);
+    }
+
+    NSString *screenshot = [scaledImageData base64EncodedStringWithOptions:0];
+    return FBResponseWithObject(@{@"screenshot": screenshot});
+}
+
+/**
+ * No-session version of screenshot capture optimized for minimal file size
+ *
+ * This method provides screenshot capture without requiring an active session,
+ * with aggressive scaling and compression to minimize file size while maintaining usability.
+ *
+ * Notes:
+ * - Uses sqrt(0.5) ≈ 0.707 scaling factor to achieve 50% linear dimensions
+ * - Results in ~25% of original image area (50% width × 50% height)
+ *
+ * Use case: When bandwidth is limited or storage space is constrained, but screenshot
+ * content still needs to be recognizable for basic analysis.
+ */
++ (id<FBResponsePayload>)takeScreenshotGadsLowQuality:(FBRouteRequest *)request
+{
+  NSError *error;
+  long long mainScreenID = [XCUIScreen.mainScreen displayID];
+
+  NSData *screenshotData = [FBScreenshot takeInOriginalResolutionWithScreenID:mainScreenID
+                                                           compressionQuality:0.7
+                                                                          uti:UTTypeJPEG
+                                                                      timeout:1
+                                                                        error:&error];
+  if (nil == screenshotData) {
+    return FBResponseWithStatus([FBCommandStatus unableToCaptureScreenErrorWithMessage:error.description traceback:nil]);
+  }
+
+  CGFloat scalingFactor = sqrt(0.5);
+  FBImageProcessor *imageProcessor = [[FBImageProcessor alloc] init];
+  NSData *scaledImageData = [imageProcessor scaledImageWithData:screenshotData
+                                                            uti:UTTypeJPEG
+                                                  scalingFactor:scalingFactor
+                                             compressionQuality:0.7
+                                                          error:&error];
+
+  if (nil == scaledImageData) {
+    return FBResponseWithStatus([FBCommandStatus unableToCaptureScreenErrorWithMessage:error.description traceback:nil]);
+  }
+
+  NSString *screenshot = [scaledImageData base64EncodedStringWithOptions:0];
+  return FBResponseWithObject(@{@"screenshot": screenshot});
 }
 
 @end
