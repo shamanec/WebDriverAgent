@@ -46,6 +46,11 @@
     [[FBRoute POST:@"/wda/swipe"].withoutSession respondWithTarget:self action:@selector(handleDeviceSwipe:)],
     [[FBRoute POST:@"/wda/type"].withoutSession respondWithTarget:self action:@selector(handleDeviceType:)],
     [[FBRoute POST:@"/wda/touchAndHold"].withoutSession respondWithTarget:self action:@selector(handleTouchAndHold:)],
+    [[FBRoute POST:@"/wda/doubleTap"].withoutSession respondWithTarget:self action:@selector(handleDoubleTap:)],
+    [[FBRoute POST:@"/wda/pinch"].withoutSession respondWithTarget:self action:@selector(handlePinch:)],
+    [[FBRoute POST:@"/wda/dragDrop"].withoutSession respondWithTarget:self action:@selector(handleDragDrop:)],
+    [[FBRoute POST:@"/wda/edgeSwipe"].withoutSession respondWithTarget:self action:@selector(handleEdgeSwipe:)],
+    [[FBRoute POST:@"/wda/twoFingerScroll"].withoutSession respondWithTarget:self action:@selector(handleTwoFingerScroll:)],
   ];
 }
 
@@ -431,6 +436,177 @@
   CGFloat delay = [request.arguments[@"delay"] doubleValue];
   [XCUIDevice.sharedDevice
    fb_synthTouchAndHold:x y:y delay:delay];
+
+  return FBResponseWithOK();
+}
+
+/**
+ * Synthesizes a pinch-to-zoom gesture using two coordinated finger movements
+ *
+ * Creates a multi-touch gesture where two fingers move simultaneously from/to
+ * positions calculated around a center point. The scale determines how far apart
+ * the fingers are - smaller scale = fingers closer (zoom out), larger scale =
+ * fingers farther apart (zoom in).
+ *
+ * centerX The horizontal coordinate of the pinch center in screen points
+ * centerY The vertical coordinate of the pinch center in screen points
+ * startScale Initial distance between fingers (1.0 = 100pt apart)
+ * endScale Final distance between fingers (2.0 = 200pt apart for zoom in)
+ * duration Duration of the pinch gesture in seconds
+ *
+ * Note: Scale > 1.0 zooms in, scale < 1.0 zooms out. Typical range: 0.5-3.0
+ */
++ (id <FBResponsePayload>)handlePinch:(FBRouteRequest *)request
+{
+  CGFloat centerX = [request.arguments[@"centerX"] doubleValue];
+  CGFloat centerY = [request.arguments[@"centerY"] doubleValue];
+  CGFloat startScale = [request.arguments[@"startScale"] doubleValue] ?: 1.0;
+  CGFloat endScale = [request.arguments[@"endScale"] doubleValue] ?: 2.0;
+  CGFloat duration = [request.arguments[@"duration"] doubleValue] ?: 1.0;
+
+  [XCUIDevice.sharedDevice
+   fb_synthPinchWithCenterX:centerX
+                    centerY:centerY
+                 startScale:startScale
+                   endScale:endScale
+                   duration:duration];
+
+  return FBResponseWithOK();
+}
+
+/**
+ * Synthesizes a drag and drop gesture from one point to another
+ *
+ * Creates a touch sequence that presses down at the start point, holds for
+ * selection, moves to the target point, and releases. This simulates the
+ * standard iOS drag-and-drop interaction pattern used for reordering items,
+ * moving files, or dragging content between applications.
+ *
+ * startX Starting horizontal coordinate in screen points
+ * startY Starting vertical coordinate in screen points
+ * endX Ending horizontal coordinate in screen points
+ * endY Ending vertical coordinate in screen points
+ * holdTime Duration to hold at start before moving (selection time)
+ * dragDuration Duration of the movement from start to end
+ *
+ * Note: holdTime should be 0.5+ seconds for reliable selection.
+ * Total gesture time = holdTime + dragDuration.
+ */
++ (id <FBResponsePayload>)handleDragDrop:(FBRouteRequest *)request
+{
+  CGFloat startX = [request.arguments[@"startX"] doubleValue];
+  CGFloat startY = [request.arguments[@"startY"] doubleValue];
+  CGFloat endX = [request.arguments[@"endX"] doubleValue];
+  CGFloat endY = [request.arguments[@"endY"] doubleValue];
+  CGFloat holdTime = [request.arguments[@"holdTime"] doubleValue] ?: 0.5;
+  CGFloat dragDuration = [request.arguments[@"dragDuration"] doubleValue] ?: 1.0;
+
+  [XCUIDevice.sharedDevice
+   fb_synthDragFromX:startX
+               Y:startY
+             toX:endX
+               Y:endY
+        holdTime:holdTime
+    dragDuration:dragDuration];
+
+  return FBResponseWithOK();
+}
+
+/**
+ * Synthesizes an edge swipe gesture from a screen edge inward
+ *
+ * Creates a swipe gesture that starts from the very edge of the screen and
+ * moves inward by the specified distance. This simulates iOS system gestures
+ * like Control Center (bottom edge), Notification Center (top edge), back
+ * navigation (left edge), and app switcher (right edge on some devices).
+ *
+ * edge The screen edge/region to swipe from: 0=top-left, 1=top-right, 2=left-center, 3=bottom-center, 4=right-center
+ * distance How far to swipe inward from the edge in screen points
+ * duration Duration of the swipe gesture in seconds
+ *
+ * Note: Edge values: 0=top-left, 1=top-right, 2=left-center, 3=bottom-center, 4=right-center. Distance typically
+ * 50-200 points. Be careful with system gesture conflicts.
+ */
++ (id <FBResponsePayload>)handleEdgeSwipe:(FBRouteRequest *)request
+{
+  NSInteger edge = [request.arguments[@"edge"] integerValue];
+  CGFloat distance = [request.arguments[@"distance"] doubleValue] ?: 100.0;
+  CGFloat duration = [request.arguments[@"duration"] doubleValue] ?: 0.5;
+
+  BOOL success;
+  if (edge == 3) {
+    // Bottom edge uses high-level XCUICoordinate approach
+    success = [XCUIDevice.sharedDevice fb_synthEdgeSwipeBottomHighLevel:distance duration:duration];
+  } else {
+    // All other edges use low-level XCPointerEventPath approach
+    success = [XCUIDevice.sharedDevice fb_synthEdgeSwipeLowLevel:edge distance:distance duration:duration];
+  }
+
+  return success ? FBResponseWithOK() : FBResponseWithStatus([FBCommandStatus unknownErrorWithMessage:@"Edge swipe failed" traceback:nil]);
+}
+
+/**
+ * Synthesizes a double tap gesture at the specified coordinates
+ *
+ * Creates two rapid tap events at the same location with a short interval
+ * between them. This simulates the iOS double-tap gesture commonly used for
+ * zooming, text selection, or activating special actions in apps.
+ *
+ * x The horizontal coordinate in screen points
+ * y The vertical coordinate in screen points
+ * tapDelay Delay between the two taps in seconds (typically 0.1-0.3)
+ *
+ * Note: tapDelay should be 0.1-0.3 seconds for reliable recognition.
+ * Each individual tap lasts 50ms with tapDelay between them.
+ */
++ (id <FBResponsePayload>)handleDoubleTap:(FBRouteRequest *)request
+{
+  CGFloat x = [request.arguments[@"x"] doubleValue];
+  CGFloat y = [request.arguments[@"y"] doubleValue];
+  CGFloat tapDelay = [request.arguments[@"tapDelay"] doubleValue] ?: 0.2;
+
+  [XCUIDevice.sharedDevice
+   fb_synthDoubleTapWithX:x
+                        y:y
+                 tapDelay:tapDelay];
+
+  return FBResponseWithOK();
+}
+
+/**
+ * Synthesizes a two-finger scroll gesture for precise content navigation
+ *
+ * Creates a synchronized two-finger movement that simulates trackpad-style
+ * scrolling. Unlike single-finger swipes that trigger navigation gestures,
+ * two-finger scrolling provides smooth content movement with momentum and
+ * is recognized by iOS as content manipulation rather than navigation.
+ *
+ * startX Starting horizontal coordinate for scroll center
+ * startY Starting vertical coordinate for scroll center
+ * endX Ending horizontal coordinate for scroll center
+ * endY Ending vertical coordinate for scroll center
+ * duration Duration of the scroll gesture in seconds
+ * fingerSpacing Distance between the two fingers in screen points
+ *
+ * Note: fingerSpacing typically 30-80 points. Larger spacing may be more
+ * reliable but could conflict with pinch gestures.
+ */
++ (id <FBResponsePayload>)handleTwoFingerScroll:(FBRouteRequest *)request
+{
+  CGFloat startX = [request.arguments[@"startX"] doubleValue];
+  CGFloat startY = [request.arguments[@"startY"] doubleValue];
+  CGFloat endX = [request.arguments[@"endX"] doubleValue];
+  CGFloat endY = [request.arguments[@"endY"] doubleValue];
+  CGFloat duration = [request.arguments[@"duration"] doubleValue] ?: 0.8;
+  CGFloat fingerSpacing = [request.arguments[@"fingerSpacing"] doubleValue] ?: 50.0;
+
+  [XCUIDevice.sharedDevice
+   fb_synthTwoFingerScrollFromX:startX
+                              Y:startY
+                            toX:endX
+                              Y:endY
+                       duration:duration
+                  fingerSpacing:fingerSpacing];
 
   return FBResponseWithOK();
 }
