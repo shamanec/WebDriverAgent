@@ -825,6 +825,10 @@
 		FF384A932E7B160600C6CF03 /* FBGadsCommands.h in Headers */ = {isa = PBXBuildFile; fileRef = FF384A912E7B15FC00C6CF03 /* FBGadsCommands.h */; };
 		FF384A952E7B161000C6CF03 /* FBGadsCommands.m in Sources */ = {isa = PBXBuildFile; fileRef = FF384A942E7B160C00C6CF03 /* FBGadsCommands.m */; };
 		FF384A962E7B161000C6CF03 /* FBGadsCommands.m in Sources */ = {isa = PBXBuildFile; fileRef = FF384A942E7B160C00C6CF03 /* FBGadsCommands.m */; };
+		FF384A982E7C306000C6CF03 /* XCUIDevice+Gads.h in Headers */ = {isa = PBXBuildFile; fileRef = FF384A972E7C305C00C6CF03 /* XCUIDevice+Gads.h */; };
+		FF384A992E7C306000C6CF03 /* XCUIDevice+Gads.h in Headers */ = {isa = PBXBuildFile; fileRef = FF384A972E7C305C00C6CF03 /* XCUIDevice+Gads.h */; };
+		FF384A9B2E7C306E00C6CF03 /* XCUIDevice+Gads.m in Sources */ = {isa = PBXBuildFile; fileRef = FF384A9A2E7C306900C6CF03 /* XCUIDevice+Gads.m */; };
+		FF384A9C2E7C306E00C6CF03 /* XCUIDevice+Gads.m in Sources */ = {isa = PBXBuildFile; fileRef = FF384A9A2E7C306900C6CF03 /* XCUIDevice+Gads.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -1407,6 +1411,8 @@
 		EEF9882A1C486603005CA669 /* WebDriverAgentRunner.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = WebDriverAgentRunner.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		FF384A912E7B15FC00C6CF03 /* FBGadsCommands.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = FBGadsCommands.h; sourceTree = "<group>"; };
 		FF384A942E7B160C00C6CF03 /* FBGadsCommands.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = FBGadsCommands.m; sourceTree = "<group>"; };
+		FF384A972E7C305C00C6CF03 /* XCUIDevice+Gads.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "XCUIDevice+Gads.h"; sourceTree = "<group>"; };
+		FF384A9A2E7C306900C6CF03 /* XCUIDevice+Gads.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "XCUIDevice+Gads.m"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1753,6 +1759,8 @@
 		EE9AB73E1CAEDF0C008C271F /* Categories */ = {
 			isa = PBXGroup;
 			children = (
+				FF384A9A2E7C306900C6CF03 /* XCUIDevice+Gads.m */,
+				FF384A972E7C305C00C6CF03 /* XCUIDevice+Gads.h */,
 				716F0D9F2A16CA1000CDD977 /* NSDictionary+FBUtf8SafeDictionary.h */,
 				716F0DA02A16CA1000CDD977 /* NSDictionary+FBUtf8SafeDictionary.m */,
 				71555A3B1DEC460A007D4A8B /* NSExpression+FBFormat.h */,
@@ -2411,6 +2419,7 @@
 				13DE7A44287C2A8D003243C6 /* FBXCAccessibilityElement.h in Headers */,
 				641EE6862240C5CA00173FCB /* FBResponseJSONPayload.h in Headers */,
 				71822714258744A900661B83 /* RouteRequest.h in Headers */,
+				FF384A992E7C306000C6CF03 /* XCUIDevice+Gads.h in Headers */,
 				641EE6872240C5CA00173FCB /* XCTAutomationTarget-Protocol.h in Headers */,
 				641EE6882240C5CA00173FCB /* FBElement.h in Headers */,
 				641EE6892240C5CA00173FCB /* XCTAXClient-Protocol.h in Headers */,
@@ -2706,6 +2715,7 @@
 				EE35AD481E3B77D600A02D78 /* XCTestDriverInterface-Protocol.h in Headers */,
 				648C10AF22AAAE4000B81B9A /* TIPreferencesController.h in Headers */,
 				E444DC6C249131890060D7EB /* HTTPDataResponse.h in Headers */,
+				FF384A982E7C306000C6CF03 /* XCUIDevice+Gads.h in Headers */,
 				E444DC65249131890060D7EB /* HTTPErrorResponse.h in Headers */,
 				EE35AD111E3B77D600A02D78 /* _XCTestSuiteImplementation.h in Headers */,
 				714097431FAE1B0B008FB2C5 /* FBBaseActionsSynthesizer.h in Headers */,
@@ -3225,6 +3235,7 @@
 				641EE6162240C5CA00173FCB /* FBSessionCommands.m in Sources */,
 				0E0413392DF1E15100AF007C /* XCUIElement+FBMinMax.m in Sources */,
 				641EE6192240C5CA00173FCB /* FBConfiguration.m in Sources */,
+				FF384A9B2E7C306E00C6CF03 /* XCUIDevice+Gads.m in Sources */,
 				641EE61A2240C5CA00173FCB /* FBElementCache.m in Sources */,
 				71F5BE26252E576C00EE9EBA /* XCUIElement+FBSwiping.m in Sources */,
 				641EE61B2240C5CA00173FCB /* FBPasteboard.m in Sources */,
@@ -3263,6 +3274,7 @@
 				EE158AC71CBD456F00A3E3F0 /* FBScreenshotCommands.m in Sources */,
 				E444DC98249131D40060D7EB /* HTTPConnection.m in Sources */,
 				7136A47A1E8918E60024FC3D /* XCUIElement+FBPickerWheel.m in Sources */,
+				FF384A9C2E7C306E00C6CF03 /* XCUIDevice+Gads.m in Sources */,
 				E444DC84249131B10060D7EB /* DDRange.m in Sources */,
 				6385F4A7220A40760095BBDB /* XCUIApplicationProcessDelay.m in Sources */,
 				71A5C67529A4F39600421C37 /* XCTIssue+FBPatcher.m in Sources */,

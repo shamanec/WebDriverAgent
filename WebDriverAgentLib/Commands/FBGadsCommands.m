@@ -7,6 +7,7 @@
 //
 
 #import "FBGadsCommands.h"
+#import "XCUIDevice+Gads.h"
 
 @import UniformTypeIdentifiers;
 
@@ -40,6 +41,11 @@
     [[FBRoute GET:@"/screenshot-hq"].withoutSession respondWithTarget:self action:@selector(takeScreenshotGadsHighQuality:)],
     [[FBRoute GET:@"/screenshot"].withoutSession respondWithTarget:self action:@selector(takeScreenshotGads:)],
     [[FBRoute GET:@"/screenshot-lq"].withoutSession respondWithTarget:self action:@selector(takeScreenshotGadsLowQuality:)],
+    [[FBRoute POST:@"/wda/apps/activate"].withoutSession respondWithTarget:self action:@selector(handleAppActivateNoSession:)],
+    [[FBRoute POST:@"/wda/tap"].withoutSession respondWithTarget:self action:@selector(handleDeviceTap:)],
+    [[FBRoute POST:@"/wda/swipe"].withoutSession respondWithTarget:self action:@selector(handleDeviceSwipe:)],
+    [[FBRoute POST:@"/wda/type"].withoutSession respondWithTarget:self action:@selector(handleDeviceType:)],
+    [[FBRoute POST:@"/wda/touchAndHold"].withoutSession respondWithTarget:self action:@selector(handleTouchAndHold:)],
   ];
 }
 
@@ -358,6 +364,75 @@
 
   NSString *screenshot = [scaledImageData base64EncodedStringWithOptions:0];
   return FBResponseWithObject(@{@"screenshot": screenshot});
+}
+
+// MARK - Custom app activation without session
++ (id<FBResponsePayload>)handleAppActivateNoSession:(FBRouteRequest *)request
+{
+  NSString *bundleId = (NSString *)request.arguments[@"bundleId"];
+  if (bundleId.length == 0) {
+    return FBResponseWithStatus([FBCommandStatus invalidArgumentErrorWithMessage:@"bundleId is required" traceback:nil]);
+  }
+
+  // Get the current idle timeout
+  NSTimeInterval previousTimeout = FBConfiguration.waitForIdleTimeout;
+  // Init the application
+  XCUIApplication *app = [[XCUIApplication alloc] initWithBundleIdentifier:bundleId];
+  // Set the idle timeout to 0 before activating app
+  // Because activating WebDriverAgent will wait for idle and it is too long
+  // Setting app.fb_shouldWaitForQuiescence does not work
+  FBConfiguration.waitForIdleTimeout = 0;
+  [app activate];
+  // Rever to the original idle timeout from before activation
+  FBConfiguration.waitForIdleTimeout = previousTimeout;
+  return FBResponseWithOK();
+}
+// MARK - Custom app activation without session
+
++ (id <FBResponsePayload>)handleDeviceType:(FBRouteRequest *)request
+{
+  NSString *text = request.arguments[@"text"];
+  [XCUIDevice.sharedDevice
+   fb_synthTypeText:text
+  ];
+  
+  return FBResponseWithOK();
+}
+
++ (id <FBResponsePayload>)handleDeviceTap:(FBRouteRequest *)request
+{
+  CGFloat x = [request.arguments[@"x"] doubleValue];
+  CGFloat y = [request.arguments[@"y"] doubleValue];
+  [XCUIDevice.sharedDevice
+    fb_synthTapWithX:x
+    y:y];
+
+  return FBResponseWithOK();
+}
+
++ (id <FBResponsePayload>)handleDeviceSwipe:(FBRouteRequest *)request
+{
+  CGFloat startX = [request.arguments[@"startX"] doubleValue];
+  CGFloat startY = [request.arguments[@"startY"] doubleValue];
+  CGFloat endX = [request.arguments[@"endX"] doubleValue];
+  CGFloat endY = [request.arguments[@"endY"] doubleValue];
+  CGFloat delay = [request.arguments[@"delay"] doubleValue];
+  [XCUIDevice.sharedDevice
+    fb_synthSwipe:startX
+    y1:startY x2:endX y2:endY delay:delay];
+
+  return FBResponseWithOK();
+}
+
++ (id <FBResponsePayload>)handleTouchAndHold:(FBRouteRequest *)request
+{
+  CGFloat x = [request.arguments[@"x"] doubleValue];
+  CGFloat y = [request.arguments[@"y"] doubleValue];
+  CGFloat delay = [request.arguments[@"delay"] doubleValue];
+  [XCUIDevice.sharedDevice
+   fb_synthTouchAndHold:x y:y delay:delay];
+
+  return FBResponseWithOK();
 }
 
 @end

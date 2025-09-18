@@ -41,7 +41,6 @@
     [[FBRoute POST:@"/session"].withoutSession respondWithTarget:self action:@selector(handleCreateSession:)],
     [[FBRoute POST:@"/wda/apps/launch"] respondWithTarget:self action:@selector(handleSessionAppLaunch:)],
     [[FBRoute POST:@"/wda/apps/activate"] respondWithTarget:self action:@selector(handleSessionAppActivate:)],
-    [[FBRoute POST:@"/wda/apps/activate"].withoutSession respondWithTarget:self action:@selector(handleAppActivateNoSession:)],
     [[FBRoute POST:@"/wda/apps/terminate"] respondWithTarget:self action:@selector(handleSessionAppTerminate:)],
     [[FBRoute POST:@"/wda/apps/state"] respondWithTarget:self action:@selector(handleSessionAppState:)],
     [[FBRoute GET:@"/wda/apps/list"] respondWithTarget:self action:@selector(handleGetActiveAppsList:)],
@@ -241,29 +240,6 @@
   return FBResponseWithOK();
 }
 
-// MARK - Custom app activation without session
-+ (id<FBResponsePayload>)handleAppActivateNoSession:(FBRouteRequest *)request
-{
-  NSString *bundleId = (NSString *)request.arguments[@"bundleId"];
-  if (bundleId.length == 0) {
-    return FBResponseWithStatus([FBCommandStatus invalidArgumentErrorWithMessage:@"bundleId is required" traceback:nil]);
-  }
-
-  // Get the current idle timeout
-  NSTimeInterval previousTimeout = FBConfiguration.waitForIdleTimeout;
-  // Init the application
-  XCUIApplication *app = [[XCUIApplication alloc] initWithBundleIdentifier:bundleId];
-  // Set the idle timeout to 0 before activating app
-  // Because activating WebDriverAgent will wait for idle and it is too long
-  // Setting app.fb_shouldWaitForQuiescence does not work
-  FBConfiguration.waitForIdleTimeout = 0;
-  [app activate];
-  // Rever to the original idle timeout from before activation
-  FBConfiguration.waitForIdleTimeout = previousTimeout;
-  return FBResponseWithOK();
-}
-// MARK - Custom app activation without session
-
 + (id<FBResponsePayload>)handleSessionAppTerminate:(FBRouteRequest *)request
 {
   BOOL result = [request.session terminateApplicationWithBundleId:(id)request.arguments[@"bundleId"]];
@@ -314,30 +290,29 @@
   if (nil != version) {
     [buildInfo setObject:version forKey:@"version"];
   }
-  
   return FBResponseWithObject(
-                              @{
+    @{
     @"ready" : @YES,
     @"message" : @"WebDriverAgent is ready to accept commands",
-    @"state" : @"success",
-    @"os" :
-      @{
-        @"name" : [[UIDevice currentDevice] systemName],
-        @"version" : [[UIDevice currentDevice] systemVersion],
-        @"sdkVersion": FBSDKVersion() ?: @"unknown",
-        @"testmanagerdVersion": @(FBTestmanagerdVersion()),
-      },
-    @"ios" :
-      @{
+      @"state" : @"success",
+      @"os" :
+        @{
+          @"name" : [[UIDevice currentDevice] systemName],
+          @"version" : [[UIDevice currentDevice] systemVersion],
+          @"sdkVersion": FBSDKVersion() ?: @"unknown",
+          @"testmanagerdVersion": @(FBTestmanagerdVersion()),
+        },
+      @"ios" :
+        @{
 #if TARGET_OS_SIMULATOR
-        @"simulatorVersion" : [[UIDevice currentDevice] systemVersion],
+          @"simulatorVersion" : [[UIDevice currentDevice] systemVersion],
 #endif
-        @"ip" : [XCUIDevice sharedDevice].fb_wifiIPAddress ?: [NSNull null]
-      },
-    @"build" : buildInfo.copy,
-    @"device": [self.class deviceNameByUserInterfaceIdiom:[UIDevice currentDevice].userInterfaceIdiom]
-  }
-                              );
+          @"ip" : [XCUIDevice sharedDevice].fb_wifiIPAddress ?: [NSNull null]
+        },
+      @"build" : buildInfo.copy,
+      @"device": [self.class deviceNameByUserInterfaceIdiom:[UIDevice currentDevice].userInterfaceIdiom]
+    }
+  );
 }
 
 + (id<FBResponsePayload>)handleGetHealthCheck:(FBRouteRequest *)request
@@ -387,7 +362,6 @@
     }
   );
 }
-
 
 // TODO if we get lots more settings, handling them with a series of if-statements will be unwieldy
 // and this should be refactored
