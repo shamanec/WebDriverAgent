@@ -126,7 +126,7 @@ static NSUInteger previousScreenshotSize;
   // Check size first (fast), then hash, then time threshold
   BOOL isDuplicate = (currentSize == previousScreenshotSize) &&
                      (currentHash == previousScreenshotHash) &&
-                     (timeElapsedSinceLastScreenshot < (uint64_t)(0.5 * NSEC_PER_SEC));
+                     (timeElapsedSinceLastScreenshot < (uint64_t)(2 * NSEC_PER_SEC));
 
   if (isDuplicate) {
     [FBLogger verboseLog:[NSString stringWithFormat:@"Skipping duplicate frame (hash: %u, size: %lu, elapsed: %.3fs)", currentHash, (unsigned long)currentSize, timeElapsedSinceLastScreenshot / 1e9]];
