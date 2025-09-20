@@ -15,6 +15,7 @@
 #import "FBErrorBuilder.h"
 #import "FBExceptionHandler.h"
 #import "FBMjpegServer.h"
+#import "FBMjpegServerGads.h"
 #import "FBRouteRequest.h"
 #import "FBRuntimeUtils.h"
 #import "FBSession.h"
@@ -71,7 +72,7 @@ static NSString *const FBServerURLEndMarker = @"<-ServerURLHere";
   [FBLogger logFmt:@"Built at %s %s", __DATE__, __TIME__];
   self.exceptionHandler = [FBExceptionHandler new];
   [self startHTTPServer];
-  [self initScreenshotsBroadcaster];
+  [self initScreenshotsBroadcasterGads];
 
   self.keepAlive = YES;
   NSRunLoop *runLoop = [NSRunLoop mainRunLoop];
@@ -127,6 +128,19 @@ static NSString *const FBServerURLEndMarker = @"<-ServerURLHere";
   }
 }
 
+- (void)initScreenshotsBroadcasterGads
+{
+  [self readMjpegSettingsFromEnv];
+  self.screenshotsBroadcaster = [[FBTCPSocket alloc]
+                                 initWithPort:(uint16_t)FBConfiguration.mjpegServerPort];
+  self.screenshotsBroadcaster.delegate = [[FBMjpegServerGads alloc] init];
+  NSError *error;
+  if (![self.screenshotsBroadcaster startWithError:&error]) {
+    [FBLogger logFmt:@"Cannot init screenshots broadcaster service on port %@. Original error: %@", @(FBConfiguration.mjpegServerPort), error.description];
+    self.screenshotsBroadcaster = nil;
+  }
+}
+
 - (void)stopScreenshotsBroadcaster
 {
   if (nil == self.screenshotsBroadcaster) {
@@ -149,10 +163,19 @@ static NSString *const FBServerURLEndMarker = @"<-ServerURLHere";
   }
 }
 
+- (void)stopScreenshotsBroadcasterGads
+{
+  if (nil == self.screenshotsBroadcaster) {
+    return;
+  }
+
+  [self.screenshotsBroadcaster stop];
+}
+
 - (void)stopServing
 {
   [FBSession.activeSession kill];
-  [self stopScreenshotsBroadcaster];
+  [self stopScreenshotsBroadcasterGads];
   if (self.server.isRunning) {
     [self.server stop:NO];
   }
