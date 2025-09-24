@@ -433,7 +433,7 @@
 {
   CGFloat x = [request.arguments[@"x"] doubleValue];
   CGFloat y = [request.arguments[@"y"] doubleValue];
-  CGFloat delay = [request.arguments[@"delay"] doubleValue];
+  CGFloat delay = [request.arguments[@"duration"] doubleValue];
   [XCUIDevice.sharedDevice
    fb_synthTouchAndHold:x y:y delay:delay];
 
