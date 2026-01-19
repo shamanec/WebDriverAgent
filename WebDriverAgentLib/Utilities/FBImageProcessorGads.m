@@ -79,6 +79,25 @@ static const CGFloat FBMaxCompressionQualityGads = 1.0f;
 }
 
 /**
+ * Converts UIImageOrientation to CGImagePropertyOrientation.
+ * These enums have different values so explicit conversion is needed.
+ */
+- (CGImagePropertyOrientation)cgOrientationFromUIOrientation:(UIImageOrientation)uiOrientation
+{
+  switch (uiOrientation) {
+    case UIImageOrientationUp:            return kCGImagePropertyOrientationUp;
+    case UIImageOrientationDown:          return kCGImagePropertyOrientationDown;
+    case UIImageOrientationLeft:          return kCGImagePropertyOrientationLeft;
+    case UIImageOrientationRight:         return kCGImagePropertyOrientationRight;
+    case UIImageOrientationUpMirrored:    return kCGImagePropertyOrientationUpMirrored;
+    case UIImageOrientationDownMirrored:  return kCGImagePropertyOrientationDownMirrored;
+    case UIImageOrientationLeftMirrored:  return kCGImagePropertyOrientationLeftMirrored;
+    case UIImageOrientationRightMirrored: return kCGImagePropertyOrientationRightMirrored;
+  }
+  return kCGImagePropertyOrientationUp;
+}
+
+/**
  * GPU-accelerated image scaling using Metal and Core Image
  *
  * This method leverages Apple's Metal framework for hardware-accelerated image processing,
@@ -109,36 +128,41 @@ static const CGFloat FBMaxCompressionQualityGads = 1.0f;
     return nil; // Metal not available - will fallback to CPU processing
   }
 
-  // Apple Documentation: https://developer.apple.com/documentation/coreimage/ciimage/1437589-imagewithdata
-  // Creates a CIImage from NSData containing image file data (JPEG, PNG, etc.)
-  // CIImage is an immutable object representing an image recipe - no pixel data loaded yet
+  // Read orientation using UIImage (same approach as CPU fallback path)
+  // UIImage reliably reads EXIF orientation from screenshot data
+  UIImage *sourceImage = [UIImage imageWithData:imageData];
+  if (!sourceImage) {
+    return nil; // Invalid image data
+  }
+
+  UIImageOrientation uiOrientation = sourceImage.imageOrientation;
+  CGImagePropertyOrientation cgOrientation = [self cgOrientationFromUIOrientation:uiOrientation];
+
   CIImage *inputImage = [CIImage imageWithData:imageData];
   if (!inputImage) {
     return nil; // Invalid image data
   }
 
-  // Apple Documentation: https://developer.apple.com/documentation/coreimage/ciimage/1437793-extent
-  // extent property returns the image's bounding rectangle in working coordinate space
-  // For images from data, this typically represents the full image dimensions
-  CGSize originalSize = inputImage.extent.size;
-  CGSize targetSize = CGSizeMake(originalSize.width * scalingFactor, originalSize.height * scalingFactor);
+  // Apply orientation using CIImage's built-in method (GPU-accelerated)
+  CIImage *orientedImage = [inputImage imageByApplyingCGOrientation:cgOrientation];
 
-  // Apple Documentation: https://developer.apple.com/documentation/coregraphics/cgaffinetransform
-  // Create 2D affine transformation matrix for uniform scaling
-  // Maintains aspect ratio by applying same scale factor to both X and Y axes
-  CGFloat scaleX = targetSize.width / originalSize.width;
-  CGFloat scaleY = targetSize.height / originalSize.height;
-  CGAffineTransform scaleTransform = CGAffineTransformMakeScale(scaleX, scaleY);
+  // Normalize extent origin after orientation (transforms can shift origin to negative values)
+  CGRect orientedExtent = orientedImage.extent;
+  if (orientedExtent.origin.x != 0 || orientedExtent.origin.y != 0) {
+    CGAffineTransform translateTransform = CGAffineTransformMakeTranslation(-orientedExtent.origin.x,
+                                                                             -orientedExtent.origin.y);
+    orientedImage = [orientedImage imageByApplyingTransform:translateTransform];
+  }
 
-  // Apple Documentation: https://developer.apple.com/documentation/coreimage/ciimage/1438110-imagebyapplyingtransform
-  // Applies affine transformation to create new CIImage with modified geometry
-  // This operation is lazy - no actual pixel processing occurs until render time
-  // GPU kernels will be used for the actual scaling when context renders the image
-  CIImage *scaledImage = [inputImage imageByApplyingTransform:scaleTransform];
+  // Apply scaling if needed
+  CIImage *finalImage = orientedImage;
+  if (scalingFactor < 1.0) {
+    CGAffineTransform scaleTransform = CGAffineTransformMakeScale(scalingFactor, scalingFactor);
+    finalImage = [orientedImage imageByApplyingTransform:scaleTransform];
+  }
 
-  // Define output rectangle for rendering
-  // This determines the final canvas size for the scaled image
-  CGRect outputRect = CGRectMake(0, 0, targetSize.width, targetSize.height);
+  // Render from the image's actual extent
+  CGRect outputRect = finalImage.extent;
 
   // Apple Documentation: https://developer.apple.com/documentation/coreimage/cicontext/1437837-createcgimage
   // Renders the CIImage pipeline to a CGImage using Metal GPU acceleration
@@ -147,29 +171,17 @@ static const CGFloat FBMaxCompressionQualityGads = 1.0f;
   // 2. GPU memory is allocated for intermediate and final results
   // 3. Optimized data transfers between CPU and GPU memory
   // 4. Hardware-accelerated bilinear/bicubic interpolation for scaling
-  CGImageRef cgImage = [_metalContext createCGImage:scaledImage fromRect:outputRect];
+  CGImageRef cgImage = [_metalContext createCGImage:finalImage fromRect:outputRect];
 
   if (!cgImage) {
     return nil; // GPU rendering failed - will fallback to CPU processing
   }
 
-  // Apple Documentation: https://developer.apple.com/documentation/uikit/uiimage/1624091-imagewithcgimage
-  // Creates UIImage wrapper around CGImage for easy JPEG encoding
+  // Create UIImage wrapper around CGImage for JPEG encoding
   UIImage *outputImage = [UIImage imageWithCGImage:cgImage];
-
-  // Important: Release CGImage to prevent memory leaks
-  // CGImage is a Core Foundation object requiring manual memory management
   CGImageRelease(cgImage);
 
-  // Apple Documentation: https://developer.apple.com/documentation/uikit/1624096-uiimagejpegrepresentation
-  // Encodes UIImage to JPEG NSData with specified compression quality
-  // This final step runs on CPU but is relatively fast compared to scaling
-  NSData *jpegData = UIImageJPEGRepresentation(outputImage, compressionQuality);
-
-  [FBLogger log:[NSString stringWithFormat:@"Metal GPU scaling: %.0fx%.0f -> %.0fx%.0f",
-                originalSize.width, originalSize.height, targetSize.width, targetSize.height]];
-
-  return jpegData;
+  return UIImageJPEGRepresentation(outputImage, compressionQuality);
 }
 
 - (void)submitImageData:(NSData *)image

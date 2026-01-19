@@ -176,13 +176,21 @@ static NSUInteger previousScreenshotSize;
   [FBLogger logFmt:@"Got screenshots broadcast client connection at %@:%d", newClient.connectedHost, newClient.connectedPort];
   // Start broadcast only after there is any data from the client
   [newClient readDataWithTimeout:-1 tag:0];
-  // When a new client connects sent two frames(two so that mjpeg can handle it properly)
+  // When a new client connects send two frames (two so that mjpeg can handle it properly)
   // Because due to the screenshot comparison optimization its possible nothing is shown on the stream
   // Until something changes on the device screen
+  // Process through image processor to ensure correct orientation
   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
       NSData *screenshotData = [self takeScreenshot];
-      [self sendScreenshotToClient:screenshotData client:newClient];
-      [self sendScreenshotToClient:screenshotData client:newClient];
+      if (screenshotData) {
+        CGFloat scalingFactor = FBConfiguration.mjpegScalingFactor / 100.0;
+        [self.imageProcessor submitImageData:screenshotData
+                               scalingFactor:scalingFactor
+                           completionHandler:^(NSData * _Nonnull processed) {
+          [self sendScreenshotToClient:processed client:newClient];
+          [self sendScreenshotToClient:processed client:newClient];
+        }];
+      }
   });
 }
 
