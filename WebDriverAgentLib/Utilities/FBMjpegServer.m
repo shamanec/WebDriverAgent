@@ -21,6 +21,8 @@
 
 static const NSUInteger MAX_FPS = 60;
 static const NSTimeInterval FRAME_TIMEOUT = 1.;
+static const NSTimeInterval FAILURE_BACKOFF_MIN = 1.0;
+static const NSTimeInterval FAILURE_BACKOFF_MAX = 10.0;
 
 static NSString *const SERVER_NAME = @"WDA MJPEG Server";
 static const char *QUEUE_NAME = "JPEG Screenshots Provider Queue";
@@ -32,6 +34,7 @@ static const char *QUEUE_NAME = "JPEG Screenshots Provider Queue";
 @property (nonatomic, readonly) NSMutableArray<GCDAsyncSocket *> *listeningClients;
 @property (nonatomic, readonly) FBImageProcessor *imageProcessor;
 @property (nonatomic, readonly) long long mainScreenID;
+@property (nonatomic, assign) NSUInteger consecutiveScreenshotFailures;
 @property (nonatomic, assign) uint64_t lastFrameSentTimestamp;
 
 @end
@@ -44,6 +47,7 @@ NSData *previousScreenshotData;
 - (instancetype)init
 {
   if ((self = [super init])) {
+    _consecutiveScreenshotFailures = 0;
     previousScreenshotData = nil;
     _lastFrameSentTimestamp = 0;
     _listeningClients = [NSMutableArray array];
@@ -108,7 +112,12 @@ NSData *previousScreenshotData;
 
   NSData *screenshotData = [self takeScreenshot];
   if (nil == screenshotData) {
-    [self scheduleNextScreenshotWithInterval:timerInterval timeStarted:timeStarted];
+    [FBLogger logFmt:@"%@", error.description];
+    self.consecutiveScreenshotFailures++;
+    NSTimeInterval backoffSeconds = MIN(FAILURE_BACKOFF_MAX,
+                                        FAILURE_BACKOFF_MIN * (1 << MIN(self.consecutiveScreenshotFailures, 4)));
+    uint64_t backoffInterval = (uint64_t)(backoffSeconds * NSEC_PER_SEC);
+    [self scheduleNextScreenshotWithInterval:backoffInterval timeStarted:timeStarted];
     return;
   }
   
@@ -119,6 +128,8 @@ NSData *previousScreenshotData;
     [self scheduleNextScreenshotWithInterval:timerInterval timeStarted:timeStarted];
     return;
   }
+
+  self.consecutiveScreenshotFailures = 0;
 
   CGFloat scalingFactor = FBConfiguration.mjpegScalingFactor / 100.0;
   [self.imageProcessor submitImageData:screenshotData

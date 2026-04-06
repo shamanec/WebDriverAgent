@@ -1,18 +1,18 @@
-import { JWProxy } from '@appium/base-driver';
+import {JWProxy} from '@appium/base-driver';
+import type {ProxyOptions} from '@appium/types';
 
-
-class NoSessionProxy extends JWProxy {
-  constructor (opts = {}) {
+export class NoSessionProxy extends JWProxy {
+  constructor(opts: ProxyOptions = {}) {
     super(opts);
   }
 
-  getUrlForProxy (url) {
+  override getUrlForProxy(url: string): string {
     if (url === '') {
       url = '/';
     }
     const proxyBase = `${this.scheme}://${this.server}:${this.port}${this.base}`;
     let remainingUrl = '';
-    if ((new RegExp('^/')).test(url)) {
+    if (new RegExp('^/').test(url)) {
       remainingUrl = url;
     } else {
       throw new Error(`Did not know what to do with url '${url}'`);
@@ -21,6 +21,3 @@ class NoSessionProxy extends JWProxy {
     return proxyBase + remainingUrl;
   }
 }
-
-export { NoSessionProxy };
-export default NoSessionProxy;

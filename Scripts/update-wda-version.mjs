@@ -1,6 +1,6 @@
-const {plist, logger} = require('@appium/support');
-const path = require('node:path');
-const semver = require('semver');
+import {plist, logger} from '@appium/support';
+import path from 'node:path';
+import semver from 'semver';
 
 const log = logger.getLogger('Versioner');
 
@@ -39,3 +39,4 @@ async function updateWdaVersion() {
 }
 
 (async () => await updateWdaVersion())();
+

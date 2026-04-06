@@ -1,8 +1,12 @@
-const path = require('path');
-const { asyncify } = require('asyncbox');
-const { logger, fs } = require('@appium/support');
-const { exec } = require('teen_process');
-const xcode = require('appium-xcode');
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { logger, fs } from '@appium/support';
+import { exec } from 'teen_process';
+import * as xcode from 'appium-xcode';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const isMainModule = process.argv[1] && path.resolve(process.argv[1]) === __filename;
 
 const LOG = new logger.getLogger('WDABuild');
 const ROOT_DIR = path.resolve(__dirname, '..');
@@ -72,8 +76,12 @@ async function buildWebDriverAgent (xcodeVersion) {
   LOG.info(`Zip bundled at "${appBundleZipPath}"`);
 }
 
-if (require.main === module) {
-  asyncify(buildWebDriverAgent);
+if (isMainModule) {
+  buildWebDriverAgent().catch((e) => {
+    LOG.error(e);
+    process.exit(1);
+  });
 }
 
-module.exports = buildWebDriverAgent;
+export default buildWebDriverAgent;
+

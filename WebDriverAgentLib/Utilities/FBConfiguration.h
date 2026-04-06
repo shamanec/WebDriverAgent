@@ -10,6 +10,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+extern NSString *const FBSnapshotMaxChildrenKey;
 extern NSString *const FBSnapshotMaxDepthKey;
 
 /**
@@ -125,6 +126,12 @@ extern NSString *const FBSnapshotMaxDepthKey;
 + (NSRange)bindingPortRange;
 
 /**
+ The IP address that the HTTP Server should bind to on launch.
+ Returns nil if not specified, which causes the server to listen on all interfaces.
+ */
++ (NSString * _Nullable)bindingIPAddress;
+
+/**
  The port number where the background screenshots broadcaster is supposed to run
  */
 + (NSInteger)mjpegServerPort;
@@ -199,6 +206,22 @@ typedef NS_ENUM(NSInteger, FBConfigurationKeyboardPreference) {
   @return The number of maximum depth for traversing elements tree
  */
 + (int)snapshotMaxDepth;
+
+/**
+ Sets the maximum number of element children to traverse in each snapshot
+ while requesting XCElementSnapshot.
+ Used to set the `maxChildren` value in a dictionary provided by
+ XCAXClient_iOS's `defaultParameters` method.
+ The original XCAXClient_iOS `maxChildren` value is `INT_MAX`.
+
+ @param maxChildren The number of maximum element children for traversing elements tree
+ */
++ (void)setSnapshotMaxChildren:(int)maxChildren;
+
+/**
+  @return The maximum number of element children for traversing elements tree
+ */
++ (int)snapshotMaxChildren;
 
 /**
  * Whether to use fast search result matching while searching for elements.
@@ -369,6 +392,28 @@ typedef NS_ENUM(NSInteger, FBConfigurationKeyboardPreference) {
  */
 + (void)setIncludeMinMaxValueInPageSource:(BOOL)enabled;
 + (BOOL)includeMinMaxValueInPageSource;
+
+/**
+ * Whether to include `customActions` attribute in the XML page source.
+ * Custom actions represent accessibility actions available on UI elements.
+ * This may affect performance if used on many elements.
+ * Disabled by default.
+ *
+ * @param enabled Either YES or NO
+ */
++ (void)setIncludeCustomActionsInPageSource:(BOOL)enabled;
++ (BOOL)includeCustomActionsInPageSource;
+
+/**
+ * Whether to enforce the use of custom snapshots instead of standard snapshots.
+ * When enabled, fb_customSnapshot is always invoked instead of fb_standardSnapshot
+ * for XPath tree building and element attributes fetching.
+ * Disabled by default.
+ *
+ * @param enabled Either YES or NO
+ */
++ (void)setEnforceCustomSnapshots:(BOOL)enabled;
++ (BOOL)enforceCustomSnapshots;
 
 @end
 
