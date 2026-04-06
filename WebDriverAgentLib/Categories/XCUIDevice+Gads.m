@@ -13,7 +13,14 @@
 #import "XCSynthesizedEventRecord.h"
 #import "XCTRunnerDaemonSession.h"
 #import "XCUIApplication+FBHelpers.h"
+#import "FBXCTestDaemonsProxy.h"
+#import "FBConfiguration.h"
 
+// Buffered typing state
+static dispatch_queue_t _typeBufferQueue;
+static NSMutableString *_typeBuffer;
+static NSUInteger _typeBufferGeneration;
+static const NSTimeInterval kTypeBufferFlushDelaySec = 0.05;
 
 @implementation XCUIDevice (Gads)
 
@@ -21,45 +28,51 @@
 #pragma clang diagnostic ignored "-Wobjc-load-method"
 
 /**
- * Synthesizes text input events to type the given string on the focused text field
+ * Buffers text for batched typing to prevent character drops during rapid input
  *
- * This method creates a keyboard input event path using XCPointerEventPath and executes
- * it through the iOS event synthesis system. The events are sent asynchronously without
- * waiting for completion to maintain UI responsiveness in device farm scenarios.
+ * Characters are accumulated on a serial queue. After kTypeBufferFlushDelayMs of
+ * inactivity (no new characters), the buffer is flushed as a single typeText event
+ * via synchronous synthesis through FBXCTestDaemonsProxy.
  *
- * @param text The string to type. Empty strings are ignored.
- * @return YES if the event was successfully queued, NO if text is empty
- *
- * Note: Uses 60 characters/second typing speed. Fast consecutive calls may result
- * in character dropping due to iOS event system limitations.
+ * @param text The string to enqueue for typing
  */
-- (BOOL)fb_synthTypeText:(NSString *)text
+- (void)fb_enqueueTypeText:(NSString *)text
 {
-  if (text.length == 0) {
-    return NO;
-  }
+  if (text.length == 0) return;
 
-  // Create an event path specifically for text/keyboard input
-  XCPointerEventPath *path = [[XCPointerEventPath alloc] initForTextInput];
-  [path typeText:text
-        atOffset:0.0                    // Start immediately
-     typingSpeed:60                     // 60 characters per second
-    shouldRedact:NO];                   // Don't redact for security logging
+  static dispatch_once_t onceToken;
+  dispatch_once(&onceToken, ^{
+    _typeBufferQueue = dispatch_queue_create("com.gads.typeBuffer", DISPATCH_QUEUE_SERIAL);
+    _typeBuffer = [NSMutableString new];
+  });
 
-  NSString *name = [NSString stringWithFormat:@"Type '%@'", text];
+  dispatch_async(_typeBufferQueue, ^{
+    [_typeBuffer appendString:text];
 
-  // Create an event record container to hold the typing event path
-  XCSynthesizedEventRecord *eventRecord =
-  [[XCSynthesizedEventRecord alloc] initWithName:name];
-  [eventRecord addPointerEventPath:path];
+    // Bump generation to invalidate any pending flush
+    NSUInteger currentGen = ++_typeBufferGeneration;
 
-  // Execute the event asynchronously through iOS event synthesizer
-  // Empty completion block maintains UI responsiveness for fast typing
-  [[self eventSynthesizer]
-   synthesizeEvent:eventRecord
-   completion:(id)^(BOOL result, NSError *invokeError) {} ];
+    // Schedule a flush after the delay. If another character arrives before
+    // this fires, the generation will have changed and this block becomes a no-op.
+    dispatch_after(
+      dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kTypeBufferFlushDelaySec * NSEC_PER_SEC)),
+      _typeBufferQueue, ^{
+        if (_typeBufferGeneration != currentGen) return;
+        if (_typeBuffer.length == 0) return;
 
-  return YES;
+        NSString *batch = [_typeBuffer copy];
+        [_typeBuffer setString:@""];
+
+        XCPointerEventPath *path = [[XCPointerEventPath alloc] initForTextInput];
+        [path typeText:batch atOffset:0.0 typingSpeed:60 shouldRedact:NO];
+
+        XCSynthesizedEventRecord *eventRecord =
+          [[XCSynthesizedEventRecord alloc] initWithName:@"BufferedType"];
+        [eventRecord addPointerEventPath:path];
+
+        [FBXCTestDaemonsProxy synthesizeEventWithRecord:eventRecord error:nil];
+      });
+  });
 }
 
 /**
