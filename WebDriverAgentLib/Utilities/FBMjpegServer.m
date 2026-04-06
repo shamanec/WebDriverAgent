@@ -112,7 +112,6 @@ NSData *previousScreenshotData;
 
   NSData *screenshotData = [self takeScreenshot];
   if (nil == screenshotData) {
-    [FBLogger logFmt:@"%@", error.description];
     self.consecutiveScreenshotFailures++;
     NSTimeInterval backoffSeconds = MIN(FAILURE_BACKOFF_MAX,
                                         FAILURE_BACKOFF_MIN * (1 << MIN(self.consecutiveScreenshotFailures, 4)));

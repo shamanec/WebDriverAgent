@@ -397,10 +397,7 @@
 + (id <FBResponsePayload>)handleDeviceType:(FBRouteRequest *)request
 {
   NSString *text = request.arguments[@"text"];
-  [XCUIDevice.sharedDevice
-   fb_synthTypeText:text
-  ];
-  
+  [XCUIDevice.sharedDevice fb_enqueueTypeText:text];
   return FBResponseWithOK();
 }
 

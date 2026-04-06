@@ -11,7 +11,7 @@
 
 @interface XCUIDevice (Gads)
 
-- (BOOL)fb_synthTypeText:(NSString *)text;
+- (void)fb_enqueueTypeText:(NSString *)text;
 
 - (BOOL)fb_synthTapWithX:(CGFloat)x
                        y:(CGFloat)y;
