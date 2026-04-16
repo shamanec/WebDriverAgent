@@ -57,4 +57,8 @@
                             duration:(CGFloat)duration
                        fingerSpacing:(CGFloat)fingerSpacing;
 
+- (BOOL)fb_synthOpenAppSwitcherWithScreenWidth:(CGFloat)screenWidth
+                                  screenHeight:(CGFloat)screenHeight
+                                      duration:(CGFloat)duration;
+
 @end

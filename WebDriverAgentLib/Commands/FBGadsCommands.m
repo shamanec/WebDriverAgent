@@ -51,6 +51,8 @@
     [[FBRoute POST:@"/wda/dragDrop"].withoutSession respondWithTarget:self action:@selector(handleDragDrop:)],
     [[FBRoute POST:@"/wda/edgeSwipe"].withoutSession respondWithTarget:self action:@selector(handleEdgeSwipe:)],
     [[FBRoute POST:@"/wda/twoFingerScroll"].withoutSession respondWithTarget:self action:@selector(handleTwoFingerScroll:)],
+    [[FBRoute POST:@"/gads-update-stream-settings"].withoutSession respondWithTarget:self action:@selector(handleUpdateStreamSettings:)],
+    [[FBRoute POST:@"/wda/appSwitcher"].withoutSession respondWithTarget:self action:@selector(handleAppSwitcher:)],
   ];
 }
 
@@ -392,7 +394,33 @@
   FBConfiguration.waitForIdleTimeout = previousTimeout;
   return FBResponseWithOK();
 }
-// MARK - Custom app activation without session
++ (id<FBResponsePayload>)handleUpdateStreamSettings:(FBRouteRequest *)request
+{
+  NSDictionary *args = request.arguments;
+
+  NSUInteger fps = args[@"fps"] ? [args[@"fps"] unsignedIntegerValue] : 30;
+  NSUInteger quality = args[@"quality"] ? [args[@"quality"] unsignedIntegerValue] : 75;
+  NSUInteger scalingFactor = args[@"scalingFactor"] ? [args[@"scalingFactor"] unsignedIntegerValue] : 50;
+
+  [FBConfiguration setMjpegServerFramerate:fps];
+  [FBConfiguration setMjpegServerScreenshotQuality:quality];
+  [FBConfiguration setMjpegScalingFactor:scalingFactor];
+
+  return FBResponseWithObject(@{
+    @"fps": @([FBConfiguration mjpegServerFramerate]),
+    @"quality": @([FBConfiguration mjpegServerScreenshotQuality]),
+    @"scalingFactor": @([FBConfiguration mjpegScalingFactor]),
+  });
+}
+
++ (id<FBResponsePayload>)handleAppSwitcher:(FBRouteRequest *)request
+{
+  CGFloat screenWidth = [request.arguments[@"screenWidth"] doubleValue];
+  CGFloat screenHeight = [request.arguments[@"screenHeight"] doubleValue];
+  CGFloat duration = request.arguments[@"duration"] ? [request.arguments[@"duration"] doubleValue] : 0.3;
+  [XCUIDevice.sharedDevice fb_synthOpenAppSwitcherWithScreenWidth:screenWidth screenHeight:screenHeight duration:duration];
+  return FBResponseWithOK();
+}
 
 + (id <FBResponsePayload>)handleDeviceType:(FBRouteRequest *)request
 {
