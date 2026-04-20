@@ -42,6 +42,7 @@
     [[FBRoute GET:@"/screenshot"].withoutSession respondWithTarget:self action:@selector(takeScreenshotGads:)],
     [[FBRoute GET:@"/screenshot-lq"].withoutSession respondWithTarget:self action:@selector(takeScreenshotGadsLowQuality:)],
     [[FBRoute POST:@"/wda/apps/activate"].withoutSession respondWithTarget:self action:@selector(handleAppActivateNoSession:)],
+    [[FBRoute POST:@"/wda/apps/terminate"].withoutSession respondWithTarget:self action:@selector(handleAppTerminateNoSession:)],
     [[FBRoute POST:@"/wda/tap"].withoutSession respondWithTarget:self action:@selector(handleDeviceTap:)],
     [[FBRoute POST:@"/wda/swipe"].withoutSession respondWithTarget:self action:@selector(handleDeviceSwipe:)],
     [[FBRoute POST:@"/wda/type"].withoutSession respondWithTarget:self action:@selector(handleDeviceType:)],
@@ -395,6 +396,23 @@
   FBConfiguration.waitForIdleTimeout = previousTimeout;
   return FBResponseWithOK();
 }
+
+// MARK - Custom app termination without session
++ (id<FBResponsePayload>)handleAppTerminateNoSession:(FBRouteRequest *)request
+{
+  NSString *bundleId = (NSString *)request.arguments[@"bundleId"];
+  if (bundleId.length == 0) {
+    return FBResponseWithStatus([FBCommandStatus invalidArgumentErrorWithMessage:@"bundleId is required" traceback:nil]);
+  }
+
+  XCUIApplication *app = [[XCUIApplication alloc] initWithBundleIdentifier:bundleId];
+  BOOL wasRunning = app.running;
+  if (wasRunning) {
+    [app terminate];
+  }
+  return FBResponseWithObject(@(wasRunning));
+}
+
 + (id<FBResponsePayload>)handleUpdateStreamSettings:(FBRouteRequest *)request
 {
   NSDictionary *args = request.arguments;
