@@ -24,6 +24,7 @@
 #import "FBResponsePayload.h"
 #import "FBRouteRequest.h"
 #import "FBScreenshot.h"
+#import "XCUIApplication.h"
 #import "XCUIScreen.h"
 #import "FBImageProcessor.h"
 
