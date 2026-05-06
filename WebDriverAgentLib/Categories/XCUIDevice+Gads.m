@@ -483,4 +483,34 @@ static const NSTimeInterval kTypeBufferFlushDelaySec = 0.05;
   return YES;
 }
 
+- (BOOL)fb_synthOpenAppSwitcherWithScreenWidth:(CGFloat)screenWidth
+                                  screenHeight:(CGFloat)screenHeight
+                                      duration:(CGFloat)duration
+{
+  CGFloat midX = screenWidth / 2.0;
+  CGFloat endY = screenHeight * 0.45;
+  CGFloat startY = screenHeight - 1;
+
+  CGFloat swipeEnd = duration * 0.3;
+  CGFloat dwellEnd = duration * 0.9;
+  CGFloat liftAt = duration;
+
+  NSLog(@"[AppSwitcher] screen: %.0fx%.0f, startPoint: (%.1f, %.1f), endPoint: (%.1f, %.1f), duration: %.2f, swipeEnd: %.2f, dwellEnd: %.2f, liftAt: %.2f",
+        screenWidth, screenHeight, midX, startY, midX, endY, duration, swipeEnd, dwellEnd, liftAt);
+
+  XCPointerEventPath *path = [[XCPointerEventPath alloc]
+      initForTouchAtPoint:CGPointMake(midX, startY) offset:0];
+  [path moveToPoint:CGPointMake(midX, endY) atOffset:swipeEnd];
+  [path moveToPoint:CGPointMake(midX, endY) atOffset:dwellEnd];
+  [path liftUpAtOffset:liftAt];
+
+  XCSynthesizedEventRecord *eventRecord = [[XCSynthesizedEventRecord alloc] initWithName:@"AppSwitcher" interfaceOrientation:0];
+  [eventRecord addPointerEventPath:path];
+
+  [[self eventSynthesizer] synthesizeEvent:eventRecord completion:(id)^(BOOL result, NSError *invokeError) {
+    NSLog(@"[AppSwitcher] synthesize result: %@, error: %@", result ? @"YES" : @"NO", invokeError);
+  }];
+  return YES;
+}
+
 @end

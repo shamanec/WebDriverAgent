@@ -42,6 +42,7 @@
     [[FBRoute GET:@"/screenshot"].withoutSession respondWithTarget:self action:@selector(takeScreenshotGads:)],
     [[FBRoute GET:@"/screenshot-lq"].withoutSession respondWithTarget:self action:@selector(takeScreenshotGadsLowQuality:)],
     [[FBRoute POST:@"/wda/apps/activate"].withoutSession respondWithTarget:self action:@selector(handleAppActivateNoSession:)],
+    [[FBRoute POST:@"/wda/apps/terminate"].withoutSession respondWithTarget:self action:@selector(handleAppTerminateNoSession:)],
     [[FBRoute POST:@"/wda/tap"].withoutSession respondWithTarget:self action:@selector(handleDeviceTap:)],
     [[FBRoute POST:@"/wda/swipe"].withoutSession respondWithTarget:self action:@selector(handleDeviceSwipe:)],
     [[FBRoute POST:@"/wda/type"].withoutSession respondWithTarget:self action:@selector(handleDeviceType:)],
@@ -51,6 +52,9 @@
     [[FBRoute POST:@"/wda/dragDrop"].withoutSession respondWithTarget:self action:@selector(handleDragDrop:)],
     [[FBRoute POST:@"/wda/edgeSwipe"].withoutSession respondWithTarget:self action:@selector(handleEdgeSwipe:)],
     [[FBRoute POST:@"/wda/twoFingerScroll"].withoutSession respondWithTarget:self action:@selector(handleTwoFingerScroll:)],
+    [[FBRoute POST:@"/gads-update-stream-settings"].withoutSession respondWithTarget:self action:@selector(handleUpdateStreamSettings:)],
+    [[FBRoute POST:@"/wda/appSwitcher"].withoutSession respondWithTarget:self action:@selector(handleAppSwitcher:)],
+    [[FBRoute POST:@"/wda/startBroadcast"].withoutSession respondWithTarget:self action:@selector(handleStartBroadcast:)],
   ];
 }
 
@@ -392,7 +396,47 @@
   FBConfiguration.waitForIdleTimeout = previousTimeout;
   return FBResponseWithOK();
 }
-// MARK - Custom app activation without session
+
+// MARK - Custom app termination without session
++ (id<FBResponsePayload>)handleAppTerminateNoSession:(FBRouteRequest *)request
+{
+  NSString *bundleId = (NSString *)request.arguments[@"bundleId"];
+  if (bundleId.length == 0) {
+    return FBResponseWithStatus([FBCommandStatus invalidArgumentErrorWithMessage:@"bundleId is required" traceback:nil]);
+  }
+
+  XCUIApplication *app = [[XCUIApplication alloc] initWithBundleIdentifier:bundleId];
+  [app terminate];
+  return FBResponseWithOK();
+}
+
++ (id<FBResponsePayload>)handleUpdateStreamSettings:(FBRouteRequest *)request
+{
+  NSDictionary *args = request.arguments;
+
+  NSUInteger fps = args[@"fps"] ? [args[@"fps"] unsignedIntegerValue] : 30;
+  NSUInteger quality = args[@"quality"] ? [args[@"quality"] unsignedIntegerValue] : 75;
+  NSUInteger scalingFactor = args[@"scalingFactor"] ? [args[@"scalingFactor"] unsignedIntegerValue] : 50;
+
+  [FBConfiguration setMjpegServerFramerate:fps];
+  [FBConfiguration setMjpegServerScreenshotQuality:quality];
+  [FBConfiguration setMjpegScalingFactor:scalingFactor];
+
+  return FBResponseWithObject(@{
+    @"fps": @([FBConfiguration mjpegServerFramerate]),
+    @"quality": @([FBConfiguration mjpegServerScreenshotQuality]),
+    @"scalingFactor": @([FBConfiguration mjpegScalingFactor]),
+  });
+}
+
++ (id<FBResponsePayload>)handleAppSwitcher:(FBRouteRequest *)request
+{
+  CGFloat screenWidth = [request.arguments[@"screenWidth"] doubleValue];
+  CGFloat screenHeight = [request.arguments[@"screenHeight"] doubleValue];
+  CGFloat duration = request.arguments[@"duration"] ? [request.arguments[@"duration"] doubleValue] : 0.3;
+  [XCUIDevice.sharedDevice fb_synthOpenAppSwitcherWithScreenWidth:screenWidth screenHeight:screenHeight duration:duration];
+  return FBResponseWithOK();
+}
 
 + (id <FBResponsePayload>)handleDeviceType:(FBRouteRequest *)request
 {
@@ -588,6 +632,108 @@
  * Note: fingerSpacing typically 30-80 points. Larger spacing may be more
  * reliable but could conflict with pinch gestures.
  */
+/**
+ * Starts a screen broadcast by automating Control Center interaction
+ *
+ * This endpoint performs a multi-step UI automation flow:
+ * 1. Detects device type (Face ID vs Home Button) via safe area insets
+ * 2. Opens Control Center with the appropriate swipe gesture
+ * 3. Finds and long-presses the Screen Recording button to open the broadcast picker
+ * 4. Selects the specified app from the broadcast picker
+ * 5. Taps "Start Broadcast"
+ *
+ * appName (required) The name of the broadcast app to select in the picker
+ * screenRecordingName (optional) The accessibility label of the Screen Recording button, defaults to "Screen Recording"
+ * timeout (optional) Timeout in seconds for each element lookup, defaults to 5.0
+ *
+ * Note: This blocks the HTTP response until the full flow completes (several seconds).
+ * Accessibility labels may change between iOS versions.
+ */
++ (id<FBResponsePayload>)handleStartBroadcast:(FBRouteRequest *)request
+{
+  NSString *appName = (NSString *)request.arguments[@"appName"];
+  if (appName.length == 0) {
+    return FBResponseWithStatus([FBCommandStatus invalidArgumentErrorWithMessage:@"appName is required" traceback:nil]);
+  }
+
+  NSString *screenRecordingName = request.arguments[@"screenRecordingName"] ?: @"Screen Recording";
+  NSTimeInterval timeout = request.arguments[@"timeout"] ? [request.arguments[@"timeout"] doubleValue] : 5.0;
+
+  XCUIApplication *springboard = [[XCUIApplication alloc] initWithBundleIdentifier:@"com.apple.springboard"];
+
+  // Step 0: Press Home twice to dismiss any open UI (Control Center, alerts, etc.)
+  [[XCUIDevice sharedDevice] pressButton:XCUIDeviceButtonHome];
+  [NSThread sleepForTimeInterval:0.5];
+  [[XCUIDevice sharedDevice] pressButton:XCUIDeviceButtonHome];
+  [NSThread sleepForTimeInterval:1.0];
+
+  XCUIApplication *activeApp = XCUIApplication.fb_activeApplication;
+
+  // Step 1: Detect device type and open Control Center
+  // Face ID devices have bottom safe area > 0 (home indicator area)
+  BOOL isFaceID = NO;
+  UIWindow *window = UIApplication.sharedApplication.windows.firstObject;
+  if (window && window.safeAreaInsets.bottom > 0) {
+    isFaceID = YES;
+  }
+
+  if (isFaceID) {
+    // Face ID: short swipe down from top-right corner
+    // Keep the swipe short to avoid overshooting into Control Center content (e.g. AirPlay)
+    XCUICoordinate *start = [activeApp coordinateWithNormalizedOffset:CGVectorMake(0.9, 0.01)];
+    XCUICoordinate *end = [activeApp coordinateWithNormalizedOffset:CGVectorMake(0.9, 0.2)];
+    [start pressForDuration:0.1 thenDragToCoordinate:end];
+  } else {
+    // Home Button: swipe up from bottom center
+    XCUICoordinate *start = [activeApp coordinateWithNormalizedOffset:CGVectorMake(0.5, 0.99)];
+    XCUICoordinate *end = [activeApp coordinateWithNormalizedOffset:CGVectorMake(0.5, 0.7)];
+    [start pressForDuration:0.1 thenDragToCoordinate:end];
+  }
+
+  // Let the Control Center animation settle
+  [NSThread sleepForTimeInterval:0.5];
+
+  // Step 2: Find Screen Recording button in Control Center
+  XCUIElement *screenRecBtn = springboard.buttons[screenRecordingName];
+  if (![screenRecBtn waitForExistenceWithTimeout:timeout]) {
+    return FBResponseWithStatus([FBCommandStatus noSuchElementErrorWithMessage:
+      [NSString stringWithFormat:@"Could not find '%@' button in Control Center within %.0fs", screenRecordingName, timeout]
+      traceback:nil]);
+  }
+
+  // Step 3: Long press to open the broadcast picker
+  [screenRecBtn pressForDuration:1.5];
+
+  // Step 4: Find and tap the target app in the broadcast picker
+  // Broadcast apps appear as Button elements in the picker
+  XCUIElement *appElement = springboard.buttons[appName];
+  if (![appElement waitForExistenceWithTimeout:timeout]) {
+    return FBResponseWithStatus([FBCommandStatus noSuchElementErrorWithMessage:
+      [NSString stringWithFormat:@"Could not find app '%@' in broadcast picker within %.0fs", appName, timeout]
+      traceback:nil]);
+  }
+  [appElement tap];
+
+  // Step 5: Tap Start Broadcast
+  XCUIElement *startBtn = springboard.buttons[@"Start Broadcast"];
+  if (![startBtn waitForExistenceWithTimeout:timeout]) {
+    return FBResponseWithStatus([FBCommandStatus noSuchElementErrorWithMessage:
+      @"Could not find 'Start Broadcast' button" traceback:nil]);
+  }
+  [startBtn tap];
+
+  // Wait for the 3-second countdown before broadcast actually starts
+  [NSThread sleepForTimeInterval:3.0];
+
+  // Dismiss the broadcast menus by pressing Home twice
+  [[XCUIDevice sharedDevice] pressButton:XCUIDeviceButtonHome];
+  [NSThread sleepForTimeInterval:0.5];
+  [[XCUIDevice sharedDevice] pressButton:XCUIDeviceButtonHome];
+  [NSThread sleepForTimeInterval:0.5];
+
+  return FBResponseWithOK();
+}
+
 + (id <FBResponsePayload>)handleTwoFingerScroll:(FBRouteRequest *)request
 {
   CGFloat startX = [request.arguments[@"startX"] doubleValue];
