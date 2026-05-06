@@ -24,7 +24,6 @@
 #import "FBResponsePayload.h"
 #import "FBRouteRequest.h"
 #import "FBScreenshot.h"
-#import "XCUIApplication.h"
 #import "XCUIScreen.h"
 #import "FBImageProcessor.h"
 
@@ -407,11 +406,8 @@
   }
 
   XCUIApplication *app = [[XCUIApplication alloc] initWithBundleIdentifier:bundleId];
-  BOOL wasRunning = app.running;
-  if (wasRunning) {
-    [app terminate];
-  }
-  return FBResponseWithObject(@(wasRunning));
+  [app terminate];
+  return FBResponseWithOK();
 }
 
 + (id<FBResponsePayload>)handleUpdateStreamSettings:(FBRouteRequest *)request
