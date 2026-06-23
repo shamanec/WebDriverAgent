@@ -18,10 +18,6 @@ extern NSString *const FBSnapshotMaxDepthKey;
  */
 @interface FBConfiguration : NSObject
 
-/*! If set to YES will ask TestManagerDaemon for element visibility */
-+ (void)setShouldUseTestManagerForVisibilityDetection:(BOOL)value;
-+ (BOOL)shouldUseTestManagerForVisibilityDetection;
-
 /*! If set to YES will use compact (standards-compliant) & faster responses */
 + (void)setShouldUseCompactResponses:(BOOL)value;
 + (BOOL)shouldUseCompactResponses;
@@ -135,6 +131,12 @@ extern NSString *const FBSnapshotMaxDepthKey;
  The port number where the background screenshots broadcaster is supposed to run
  */
 + (NSInteger)mjpegServerPort;
+
+/**
+ The maximum allowed HTTP request body size in bytes.
+ Defaults to 1GB and can be overridden with the MAX_HTTP_REQUEST_BODY_SIZE environment variable.
+ */
++ (UInt64)httpRequestBodySizeLimit;
 
 /**
  The scaling factor for frames of the mjpeg stream. The default (and maximum) value is 100,
@@ -277,17 +279,6 @@ typedef NS_ENUM(NSInteger, FBConfigurationKeyboardPreference) {
 + (NSTimeInterval)animationCoolOffTimeout;
 
 /**
- Enforces the page hierarchy to include non modal elements,
- like Contacts. By default such elements are not present there.
- See https://github.com/appium/appium/issues/13227
-
- @param isEnabled Set to YES in order to enable non modal elements inclusion.
- Setting this value to YES will have no effect if the current iOS SDK does not support such feature.
- */
-+ (void)setIncludeNonModalElements:(BOOL)isEnabled;
-+ (BOOL)includeNonModalElements;
-
-/**
  Sets custom class chain locators for accept/dismiss alert buttons location.
  This might be useful if the default buttons detection algorithm fails to determine alert buttons properly
  when defaultAlertAction is set.
@@ -380,6 +371,24 @@ typedef NS_ENUM(NSInteger, FBConfigurationKeyboardPreference) {
  */
 + (void)setIncludeNativeFrameInPageSource:(BOOL)enabled;
 + (BOOL)includeNativeFrameInPageSource;
+
+/**
+ * Whether to include the `nativeAccessibilityElement` attribute in the XML page source.
+ *
+ * When enabled, the XML representation will contain the raw, native
+ * `isAccessibilityElement` value as reported by the accessibility framework,
+ * without the custom computation that WebDriverAgent applies to the
+ * `accessible` attribute (cell/text field special cases and parent absorption).
+ *
+ * This is useful for consumers that need to reason about the unmodified
+ * accessibility flag alongside the computed `accessible` value.
+ *
+ * The value is disabled by default to keep the default page source stable.
+ *
+ * @param enabled Either YES or NO
+ */
++ (void)setIncludeNativeAccessibilityElementInPageSource:(BOOL)enabled;
++ (BOOL)includeNativeAccessibilityElementInPageSource;
 
 /**
  * Whether to include `minValue`/`maxValue` attributes in the page source.
