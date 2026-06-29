@@ -8,6 +8,10 @@
 
 #import "FBGadsCommands.h"
 #import "XCUIDevice+Gads.h"
+#import "XCUIDevice+FBHelpers.h"
+#import "XCUIApplication+FBHelpers.h"
+
+#import <sys/sysctl.h>
 
 @import UniformTypeIdentifiers;
 
@@ -449,6 +453,103 @@
  * Note: This blocks the HTTP response until the full flow completes (several seconds).
  * Accessibility labels may change between iOS versions.
  */
+/**
+ * Returns the hardware model identifier, e.g. "iPhone11,8" for the iPhone XR.
+ * On the Simulator hw.machine is the host architecture, so the real identifier is read
+ * from the SIMULATOR_MODEL_IDENTIFIER environment variable instead.
+ */
++ (NSString *)fb_deviceModelIdentifier
+{
+  NSString *simIdentifier = NSProcessInfo.processInfo.environment[@"SIMULATOR_MODEL_IDENTIFIER"];
+  if (simIdentifier.length > 0) {
+    return simIdentifier;
+  }
+  size_t size = 0;
+  if (sysctlbyname("hw.machine", NULL, &size, NULL, 0) != 0 || size == 0) {
+    return @"";
+  }
+  char *machine = malloc(size);
+  if (NULL == machine) {
+    return @"";
+  }
+  NSString *identifier = @"";
+  if (sysctlbyname("hw.machine", machine, &size, NULL, 0) == 0) {
+    identifier = [NSString stringWithUTF8String:machine] ?: @"";
+  }
+  free(machine);
+  return identifier;
+}
+
+/**
+ * Whether the current device has a hardware Home button (so Control Center is opened by
+ * swiping up from the bottom, and pressButton:Home works).
+ *
+ * iPhone X (iPhone10,3 / iPhone10,6) was the first Face ID phone, but it shares generation
+ * 10 with the Home-button iPhone 8/8+ (iPhone10,1/10,2/10,4/10,5). From generation 11 on,
+ * the only Home-button phones are the SE models (iPhone SE 2 = iPhone12,8, SE 3 = iPhone14,6).
+ * iPads and unknown models default to NO (Face ID gesture), which also opens Control Center
+ * on modern iPads.
+ */
++ (BOOL)fb_isHomeButtonDevice
+{
+  NSString *model = [self fb_deviceModelIdentifier];
+  if (![model hasPrefix:@"iPhone"]) {
+    return NO;
+  }
+
+  NSScanner *scanner = [NSScanner scannerWithString:[model substringFromIndex:@"iPhone".length]];
+  NSInteger major = 0;
+  NSInteger minor = 0;
+  if (![scanner scanInteger:&major]) {
+    return NO;
+  }
+  [scanner scanString:@"," intoString:NULL];
+  [scanner scanInteger:&minor];
+
+  if (major < 10) {
+    return YES;
+  }
+  if (major == 10) {
+    return minor == 1 || minor == 2 || minor == 4 || minor == 5;
+  }
+  // Generation 11+: Face ID everywhere except the Home-button SE models.
+  return (major == 12 && minor == 8) || (major == 14 && minor == 6);
+}
+
+/**
+ * Performs one Control Center opening gesture.
+ *
+ * Device type (Face ID vs Home button) cannot be reliably detected from the WDA runner's
+ * own window safe-area, so instead of detecting we try both gestures and let the caller
+ * verify which one actually revealed Control Center.
+ *
+ * faceIDGesture YES: pull down from the extreme top-right edge (Face ID devices). The
+ *               touch must start at the very top edge (y ~ 0) and travel well into the
+ *               screen for the system to recognise the pull.
+ *               NO: swipe up from the bottom edge (Home button devices).
+ */
++ (void)fb_openControlCenterWithFaceIDGesture:(BOOL)faceIDGesture
+{
+  // Use only normalized coordinates so we don't read activeApp.frame, which would force
+  // an accessibility snapshot on every attempt.
+  XCUIApplication *activeApp = XCUIApplication.fb_activeApplication;
+
+  if (faceIDGesture) {
+    // Pull down ~35% from the extreme top-right edge.
+    XCUICoordinate *start = [activeApp coordinateWithNormalizedOffset:CGVectorMake(0.95, 0.0)];
+    XCUICoordinate *end = [activeApp coordinateWithNormalizedOffset:CGVectorMake(0.95, 0.35)];
+    [start pressForDuration:0.05 thenDragToCoordinate:end];
+  } else {
+    // Swipe up ~35% from the bottom edge.
+    XCUICoordinate *start = [activeApp coordinateWithNormalizedOffset:CGVectorMake(0.5, 1.0)];
+    XCUICoordinate *end = [activeApp coordinateWithNormalizedOffset:CGVectorMake(0.5, 0.65)];
+    [start pressForDuration:0.05 thenDragToCoordinate:end];
+  }
+
+  // Let the Control Center animation settle.
+  [NSThread sleepForTimeInterval:0.5];
+}
+
 + (id<FBResponsePayload>)handleStartBroadcast:(FBRouteRequest *)request
 {
   NSString *appName = (NSString *)request.arguments[@"appName"];
@@ -461,48 +562,39 @@
 
   XCUIApplication *springboard = [[XCUIApplication alloc] initWithBundleIdentifier:@"com.apple.springboard"];
 
-  // Step 0: Press Home twice to dismiss any open UI (Control Center, alerts, etc.)
-  [[XCUIDevice sharedDevice] pressButton:XCUIDeviceButtonHome];
-  [NSThread sleepForTimeInterval:0.5];
-  [[XCUIDevice sharedDevice] pressButton:XCUIDeviceButtonHome];
-  [NSThread sleepForTimeInterval:1.0];
-
-  XCUIApplication *activeApp = XCUIApplication.fb_activeApplication;
-
-  // Step 1: Detect device type and open Control Center
-  // Face ID devices have bottom safe area > 0 (home indicator area)
-  BOOL isFaceID = NO;
-  UIWindow *window = UIApplication.sharedApplication.windows.firstObject;
-  if (window && window.safeAreaInsets.bottom > 0) {
-    isFaceID = YES;
-  }
-
-  if (isFaceID) {
-    // Face ID: short swipe down from top-right corner
-    // Keep the swipe short to avoid overshooting into Control Center content (e.g. AirPlay)
-    XCUICoordinate *start = [activeApp coordinateWithNormalizedOffset:CGVectorMake(0.9, 0.01)];
-    XCUICoordinate *end = [activeApp coordinateWithNormalizedOffset:CGVectorMake(0.9, 0.2)];
-    [start pressForDuration:0.1 thenDragToCoordinate:end];
-  } else {
-    // Home Button: swipe up from bottom center
-    XCUICoordinate *start = [activeApp coordinateWithNormalizedOffset:CGVectorMake(0.5, 0.99)];
-    XCUICoordinate *end = [activeApp coordinateWithNormalizedOffset:CGVectorMake(0.5, 0.7)];
-    [start pressForDuration:0.1 thenDragToCoordinate:end];
-  }
-
-  // Let the Control Center animation settle
+  // Step 0: Go to the home screen to dismiss any open UI (Control Center, picker, etc.).
+  // Activating SpringBoard works on all devices, unlike pressButton:Home which is a no-op
+  // on Face ID devices (no hardware Home button).
+  [[XCUIDevice sharedDevice] fb_goToHomescreenWithError:nil];
   [NSThread sleepForTimeInterval:0.5];
 
-  // Step 2: Find Screen Recording button in Control Center
+  // Step 1: Open Control Center, retrying and verifying that the Screen Recording
+  // button actually appeared. A mis-detected device type or a swipe that the system
+  // reads as App Switcher/Home can otherwise silently fail the whole flow.
   XCUIElement *screenRecBtn = springboard.buttons[screenRecordingName];
-  if (![screenRecBtn waitForExistenceWithTimeout:timeout]) {
+  BOOL opened = NO;
+  // Pick the first gesture from the device model (reliable), then keep the other as a
+  // fallback, alternating until the Screen Recording button appears.
+  BOOL faceIDFirst = ![self fb_isHomeButtonDevice];
+  BOOL gestureSequence[] = { faceIDFirst, !faceIDFirst, faceIDFirst, !faceIDFirst };
+  NSInteger maxAttempts = sizeof(gestureSequence) / sizeof(gestureSequence[0]);
+  for (NSInteger attempt = 0; attempt < maxAttempts && !opened; attempt++) {
+    [self fb_openControlCenterWithFaceIDGesture:gestureSequence[attempt]];
+    opened = [screenRecBtn waitForExistenceWithTimeout:timeout];
+    if (!opened) {
+      // A wrong swipe may have opened the App Switcher or gone Home; reset and retry.
+      [[XCUIDevice sharedDevice] fb_goToHomescreenWithError:nil];
+      [NSThread sleepForTimeInterval:0.5];
+    }
+  }
+  if (!opened) {
     return FBResponseWithStatus([FBCommandStatus noSuchElementErrorWithMessage:
       [NSString stringWithFormat:@"Could not find '%@' button in Control Center within %.0fs", screenRecordingName, timeout]
       traceback:nil]);
   }
 
   // Step 3: Long press to open the broadcast picker
-  [screenRecBtn pressForDuration:1.5];
+  [screenRecBtn pressForDuration:1.0];
 
   // Step 4: Find and tap the target app in the broadcast picker
   // Broadcast apps appear as Button elements in the picker
@@ -514,22 +606,23 @@
   }
   [appElement tap];
 
-  // Step 5: Tap Start Broadcast
-  XCUIElement *startBtn = springboard.buttons[@"Start Broadcast"];
+  // Step 5: Tap the start button, which is labelled "Start Broadcast" or "Start Sharing"
+  // depending on the iOS version.
+  NSArray<NSString *> *startLabels = @[@"Start Broadcast", @"Start Sharing"];
+  NSPredicate *startPredicate = [NSPredicate predicateWithFormat:@"label IN %@", startLabels];
+  XCUIElement *startBtn = [springboard.buttons matchingPredicate:startPredicate].firstMatch;
   if (![startBtn waitForExistenceWithTimeout:timeout]) {
     return FBResponseWithStatus([FBCommandStatus noSuchElementErrorWithMessage:
-      @"Could not find 'Start Broadcast' button" traceback:nil]);
+      [NSString stringWithFormat:@"Could not find a start button (%@)", [startLabels componentsJoinedByString:@" / "]]
+      traceback:nil]);
   }
   [startBtn tap];
 
-  // Wait for the 3-second countdown before broadcast actually starts
-  [NSThread sleepForTimeInterval:3.0];
-
-  // Dismiss the broadcast menus by pressing Home twice
-  [[XCUIDevice sharedDevice] pressButton:XCUIDeviceButtonHome];
-  [NSThread sleepForTimeInterval:0.5];
-  [[XCUIDevice sharedDevice] pressButton:XCUIDeviceButtonHome];
-  [NSThread sleepForTimeInterval:0.5];
+  // No need to wait out the 3-2-1 countdown: ReplayKit starts the broadcast on its own
+  // once tapped. Activate SpringBoard to return to a known state from whatever app is
+  // foreground. (Works on all devices, unlike pressButton:Home which is a no-op on Face
+  // ID devices.)
+  [[XCUIDevice sharedDevice] fb_goToHomescreenWithError:nil];
 
   return FBResponseWithOK();
 }
