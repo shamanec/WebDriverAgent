@@ -27,6 +27,11 @@ static const NSTimeInterval FAILURE_BACKOFF_MAX = 10.0;
 static NSString *const SERVER_NAME = @"WDA MJPEG Server";
 static const char *QUEUE_NAME = "JPEG Screenshots Provider Queue";
 
+static NSUInteger FBNormalizedMjpegFramerate(NSUInteger framerate)
+{
+  return (0 == framerate || framerate > MAX_FPS) ? MAX_FPS : framerate;
+}
+
 
 @interface FBMjpegServer()
 
@@ -35,74 +40,63 @@ static const char *QUEUE_NAME = "JPEG Screenshots Provider Queue";
 @property (nonatomic, readonly) FBImageProcessor *imageProcessor;
 @property (nonatomic, readonly) long long mainScreenID;
 @property (nonatomic, assign) NSUInteger consecutiveScreenshotFailures;
-@property (nonatomic, assign) uint64_t lastFrameSentTimestamp;
+@property (atomic, assign) BOOL isStreaming;
+@property (nonatomic, assign) NSUInteger sentFramesCount;
+@property (nonatomic, assign) NSUInteger sentBytesCount;
 
 @end
 
 
 @implementation FBMjpegServer
 
-NSData *previousScreenshotData;
-
 - (instancetype)init
 {
   if ((self = [super init])) {
     _consecutiveScreenshotFailures = 0;
-    previousScreenshotData = nil;
-    _lastFrameSentTimestamp = 0;
+    _isStreaming = YES;
+    _sentFramesCount = 0;
+    _sentBytesCount = 0;
     _listeningClients = [NSMutableArray array];
-    dispatch_queue_attr_t queueAttributes = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0);
-    _backgroundQueue = dispatch_queue_create(QUEUE_NAME, queueAttributes);
-    
-    dispatch_async(_backgroundQueue, ^{
-      [self streamScreenshot];
-    });
     _imageProcessor = [[FBImageProcessor alloc] init];
     _mainScreenID = [XCUIScreen.mainScreen displayID];
+    dispatch_queue_attr_t queueAttributes = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0);
+    _backgroundQueue = dispatch_queue_create(QUEUE_NAME, queueAttributes);
+    __weak typeof(self) weakSelf = self;
+    dispatch_async(_backgroundQueue, ^{
+      [weakSelf streamScreenshot];
+    });
   }
   return self;
 }
 
 - (void)scheduleNextScreenshotWithInterval:(uint64_t)timerInterval timeStarted:(uint64_t)timeStarted
 {
+  if (!self.isStreaming) {
+    return;
+  }
   uint64_t timeElapsed = clock_gettime_nsec_np(CLOCK_MONOTONIC_RAW) - timeStarted;
-  int64_t nextTickDelta = timerInterval - timeElapsed;
+  int64_t nextTickDelta = (int64_t)timerInterval - (int64_t)timeElapsed;
+  __weak typeof(self) weakSelf = self;
   if (nextTickDelta > 0) {
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, nextTickDelta), self.backgroundQueue, ^{
-      [self streamScreenshot];
+      [weakSelf streamScreenshot];
     });
   } else {
     // Try to do our best to keep the FPS at a decent level
     dispatch_async(self.backgroundQueue, ^{
-      [self streamScreenshot];
+      [weakSelf streamScreenshot];
     });
   }
 }
 
-- (NSData *)takeScreenshot
-{
-  NSError *error;
-  CGFloat compressionQuality = MAX(FBMinCompressionQuality,
-                                   MIN(FBMaxCompressionQuality, FBConfiguration.mjpegServerScreenshotQuality / 100.0));
-  NSData *screenshotData = [FBScreenshot takeInOriginalResolutionWithScreenID:self.mainScreenID
-                                                           compressionQuality:compressionQuality
-                                                                          uti:UTTypeJPEG
-                                                                      timeout:FRAME_TIMEOUT
-                                                                        error:&error];
-  if (error) {
-          [FBLogger logFmt:@"%@", error.description];
-          return nil;
-      }
-
-  return screenshotData;
-}
-
 - (void)streamScreenshot
 {
-  NSUInteger framerate = FBConfiguration.mjpegServerFramerate;
-  uint64_t timerInterval = (uint64_t)(1.0 / ((0 == framerate || framerate > MAX_FPS) ? MAX_FPS : framerate) * NSEC_PER_SEC);
+  if (!self.isStreaming) {
+    return;
+  }
+  NSUInteger framerate = FBNormalizedMjpegFramerate(FBConfiguration.mjpegServerFramerate);
+  uint64_t timerInterval = (uint64_t)(1.0 / (double)framerate * NSEC_PER_SEC);
   uint64_t timeStarted = clock_gettime_nsec_np(CLOCK_MONOTONIC_RAW);
-  uint64_t currentTime = timeStarted;
   @synchronized (self.listeningClients) {
     if (0 == self.listeningClients.count) {
       [self scheduleNextScreenshotWithInterval:timerInterval timeStarted:timeStarted];
@@ -110,8 +104,16 @@ NSData *previousScreenshotData;
     }
   }
 
-  NSData *screenshotData = [self takeScreenshot];
+  NSError *error;
+  CGFloat compressionQuality = MAX(FBMinCompressionQuality,
+                                   MIN(FBMaxCompressionQuality, (double)FBConfiguration.mjpegServerScreenshotQuality / 100.0));
+  NSData *screenshotData = [FBScreenshot takeInOriginalResolutionWithScreenID:self.mainScreenID
+                                                           compressionQuality:compressionQuality
+                                                                          uti:UTTypeJPEG
+                                                                      timeout:FRAME_TIMEOUT
+                                                                        error:&error];
   if (nil == screenshotData) {
+    [FBLogger logFmt:@"%@", error.description];
     self.consecutiveScreenshotFailures++;
     NSTimeInterval backoffSeconds = MIN(FAILURE_BACKOFF_MAX,
                                         FAILURE_BACKOFF_MIN * (1 << MIN(self.consecutiveScreenshotFailures, 4)));
@@ -119,48 +121,46 @@ NSData *previousScreenshotData;
     [self scheduleNextScreenshotWithInterval:backoffInterval timeStarted:timeStarted];
     return;
   }
-  
-  uint64_t timeElapsedSinceLastScreenshot = currentTime - self.lastFrameSentTimestamp;
-  // If the current screenshot is the same as the previous screenshot and it was less than 0.5 second ago
-  // Do not sent a frame to save bandwidth
-  if ([screenshotData isEqualToData:previousScreenshotData] && timeElapsedSinceLastScreenshot < (uint64_t)(0.5 * NSEC_PER_SEC)) {
-    [self scheduleNextScreenshotWithInterval:timerInterval timeStarted:timeStarted];
-    return;
-  }
 
   self.consecutiveScreenshotFailures = 0;
 
   CGFloat scalingFactor = FBConfiguration.mjpegScalingFactor / 100.0;
+  __weak typeof(self) weakSelf = self;
   [self.imageProcessor submitImageData:screenshotData
                          scalingFactor:scalingFactor
                      completionHandler:^(NSData * _Nonnull scaled) {
-    [self sendScreenshot:scaled];
-    previousScreenshotData = screenshotData;
-    self.lastFrameSentTimestamp = clock_gettime_nsec_np(CLOCK_MONOTONIC_RAW);
+    [weakSelf sendScreenshot:scaled];
   }];
 
   [self scheduleNextScreenshotWithInterval:timerInterval timeStarted:timeStarted];
 }
 
 - (void)sendScreenshot:(NSData *)screenshotData {
+  if (!self.isStreaming) {
+    return;
+  }
   NSString *chunkHeader = [NSString stringWithFormat:@"--BoundaryString\r\nContent-type: image/jpeg\r\nContent-Length: %@\r\n\r\n", @(screenshotData.length)];
   NSMutableData *chunk = [[chunkHeader dataUsingEncoding:NSUTF8StringEncoding] mutableCopy];
   [chunk appendData:screenshotData];
   [chunk appendData:(id)[@"\r\n\r\n" dataUsingEncoding:NSUTF8StringEncoding]];
   @synchronized (self.listeningClients) {
-    for (GCDAsyncSocket *client in self.listeningClients) {
-      [client writeData:chunk withTimeout:-1 tag:0];
+    if (!self.isStreaming || 0 == self.listeningClients.count) {
+      return;
     }
-  }
-}
-
-- (void)sendScreenshotToClient:(NSData *)screenshotData client:(GCDAsyncSocket *) client {
-  NSString *chunkHeader = [NSString stringWithFormat:@"--BoundaryString\r\nContent-type: image/jpg\r\nContent-Length: %@\r\n\r\n", @(screenshotData.length)];
-  NSMutableData *chunk = [[chunkHeader dataUsingEncoding:NSUTF8StringEncoding] mutableCopy];
-  [chunk appendData:screenshotData];
-  [chunk appendData:(id)[@"\r\n\r\n" dataUsingEncoding:NSUTF8StringEncoding]];
-  @synchronized (self.listeningClients) {
-    [client writeData:chunk withTimeout:-1 tag:0];
+    NSUInteger clientCount = self.listeningClients.count;
+    for (GCDAsyncSocket *client in self.listeningClients) {
+      // Slow clients should fail/close instead of buffering indefinitely.
+      [client writeData:chunk withTimeout:FRAME_TIMEOUT tag:0];
+    }
+    self.sentFramesCount++;
+    self.sentBytesCount += chunk.length * clientCount;
+    NSUInteger framerate = FBNormalizedMjpegFramerate(FBConfiguration.mjpegServerFramerate);
+    if (0 == self.sentFramesCount % framerate) {
+      [FBLogger verboseLog:[NSString stringWithFormat:@"MJPEG stats: clients=%@ sentFrames=%@ sentBytes=%@",
+                            @(clientCount),
+                            @(self.sentFramesCount),
+                            @(self.sentBytesCount)]];
+    }
   }
 }
 
@@ -169,14 +169,6 @@ NSData *previousScreenshotData;
   [FBLogger logFmt:@"Got screenshots broadcast client connection at %@:%d", newClient.connectedHost, newClient.connectedPort];
   // Start broadcast only after there is any data from the client
   [newClient readDataWithTimeout:-1 tag:0];
-  // When a new client connects sent two frames(two so that mjpeg can handle it properly)
-  // Because due to the screenshot comparison optimization its possible nothing is shown on the stream
-  // Until something changes on the device screen
-  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-      NSData *screenshotData = [self takeScreenshot];
-      [self sendScreenshotToClient:screenshotData client:newClient];
-      [self sendScreenshotToClient:screenshotData client:newClient];
-  });
 }
 
 - (void)didClientSendData:(GCDAsyncSocket *)client
@@ -201,6 +193,24 @@ NSData *previousScreenshotData;
     [self.listeningClients removeObject:client];
   }
   [FBLogger log:@"Disconnected a client from screenshots broadcast"];
+}
+
+- (void)stopStreaming
+{
+  self.isStreaming = NO;
+  @synchronized (self.listeningClients) {
+    NSArray<GCDAsyncSocket *> *clients = self.listeningClients.copy;
+    [self.listeningClients removeAllObjects];
+    for (GCDAsyncSocket *client in clients) {
+      [client disconnect];
+    }
+  }
+}
+
+- (void)dealloc
+{
+  [self stopStreaming];
+  [FBLogger verboseLog:@"FBMjpegServer deallocated"];
 }
 
 @end

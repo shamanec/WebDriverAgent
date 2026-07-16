@@ -42,7 +42,7 @@ describe('utils', function () {
       await expect(getXctestrunFilePath(deviceInfo, sdkVersion, bootstrapPath)).to.eventually.equal(
         path.resolve(`${bootstrapPath}/${udid}_${sdkVersion}.xctestrun`),
       );
-      sandbox.assert.notCalled(fs.copyFile);
+      sandbox.assert.notCalled(fs.copyFile as any);
     });
 
     it('should return sdk based path without udid, copy them', async function () {
@@ -102,7 +102,7 @@ describe('utils', function () {
       await expect(getXctestrunFilePath(deviceInfo, sdkVersion, bootstrapPath)).to.eventually.equal(
         path.resolve(`${bootstrapPath}/${udid}_${platformVersion}.xctestrun`),
       );
-      sandbox.assert.notCalled(fs.copyFile);
+      sandbox.assert.notCalled(fs.copyFile as any);
     });
 
     it('should return platform based path without udid, copy them', async function () {
@@ -180,6 +180,13 @@ describe('utils', function () {
     it('should return tvos format', function () {
       const wdaPort = getAdditionalRunContent(PLATFORM_NAME_TVOS, '9000');
       expect(wdaPort.WebDriverAgentRunner_tvOS.EnvironmentVariables.USE_PORT).to.equal('9000');
+    });
+
+    it('should include max HTTP request body size if provided', function () {
+      const runContent = getAdditionalRunContent(PLATFORM_NAME_IOS, 8000, undefined, 1024);
+      expect(
+        runContent.WebDriverAgentRunner.EnvironmentVariables.MAX_HTTP_REQUEST_BODY_SIZE,
+      ).to.equal('1024');
     });
   });
 

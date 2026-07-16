@@ -8,6 +8,10 @@
 
 #import "FBGadsCommands.h"
 #import "XCUIDevice+Gads.h"
+#import "XCUIDevice+FBHelpers.h"
+#import "XCUIApplication+FBHelpers.h"
+
+#import <sys/sysctl.h>
 
 @import UniformTypeIdentifiers;
 
@@ -36,8 +40,6 @@
 {
   return
   @[
-    [[FBRoute GET:@"/appium/settings"].withoutSession respondWithTarget:self action:@selector(handleGetSettingsGads:)],
-    [[FBRoute POST:@"/appium/settings"].withoutSession respondWithTarget:self action:@selector(handleSetSettingsGads:)],
     [[FBRoute GET:@"/screenshot-hq"].withoutSession respondWithTarget:self action:@selector(takeScreenshotGadsHighQuality:)],
     [[FBRoute GET:@"/screenshot"].withoutSession respondWithTarget:self action:@selector(takeScreenshotGads:)],
     [[FBRoute GET:@"/screenshot-lq"].withoutSession respondWithTarget:self action:@selector(takeScreenshotGadsLowQuality:)],
@@ -56,204 +58,6 @@
     [[FBRoute POST:@"/wda/appSwitcher"].withoutSession respondWithTarget:self action:@selector(handleAppSwitcher:)],
     [[FBRoute POST:@"/wda/startBroadcast"].withoutSession respondWithTarget:self action:@selector(handleStartBroadcast:)],
   ];
-}
-
-/**
- * No-session version of FBSessionCommands.handleGetSettings
- *
- * This method is based on FBSessionCommands.handleGetSettings (line 352) but designed
- * to work without requiring an active WebDriver session.
- *
- * Key differences from the original session-required version:
- * 1. Safe access to session-specific settings (defaultActiveApplication, defaultAlertAction)
- *    - Returns empty strings when no session exists instead of crashing
- * 2. Conditional inclusion of settings that may not always be available
- *    - activeAppDetectionPoint only added if coordinates exist
- *    - includeNonModalElements only set if the feature is supported
- * 3. Excludes session-dependent features:
- *    - autoClickAlertSelector (requires session for alerts monitor)
- *
- * When updating: Compare with FBSessionCommands.handleGetSettings and sync any new
- * settings, ensuring proper session-safe access patterns are maintained.
- */
-+ (id<FBResponsePayload>)handleGetSettingsGads:(FBRouteRequest *)request
-{
-  FBSession *session = request.session;
-
-  NSMutableDictionary *settings = [@{
-    FB_SETTING_USE_COMPACT_RESPONSES: @([FBConfiguration shouldUseCompactResponses]),
-    FB_SETTING_ELEMENT_RESPONSE_ATTRIBUTES: [FBConfiguration elementResponseAttributes],
-    FB_SETTING_MJPEG_SERVER_SCREENSHOT_QUALITY: @([FBConfiguration mjpegServerScreenshotQuality]),
-    FB_SETTING_MJPEG_SERVER_FRAMERATE: @([FBConfiguration mjpegServerFramerate]),
-    FB_SETTING_MJPEG_SCALING_FACTOR: @([FBConfiguration mjpegScalingFactor]),
-    FB_SETTING_MJPEG_FIX_ORIENTATION: @([FBConfiguration mjpegShouldFixOrientation]),
-    FB_SETTING_SCREENSHOT_QUALITY: @([FBConfiguration screenshotQuality]),
-    FB_SETTING_KEYBOARD_AUTOCORRECTION: @([FBConfiguration keyboardAutocorrection]),
-    FB_SETTING_KEYBOARD_PREDICTION: @([FBConfiguration keyboardPrediction]),
-    FB_SETTING_SNAPSHOT_MAX_DEPTH: @([FBConfiguration snapshotMaxDepth]),
-    FB_SETTING_USE_FIRST_MATCH: @([FBConfiguration useFirstMatch]),
-    FB_SETTING_WAIT_FOR_IDLE_TIMEOUT: @([FBConfiguration waitForIdleTimeout]),
-    FB_SETTING_ANIMATION_COOL_OFF_TIMEOUT: @([FBConfiguration animationCoolOffTimeout]),
-    FB_SETTING_BOUND_ELEMENTS_BY_INDEX: @([FBConfiguration boundElementsByIndex]),
-    FB_SETTING_REDUCE_MOTION: @([FBConfiguration reduceMotionEnabled]),
-    FB_SETTING_INCLUDE_NON_MODAL_ELEMENTS: @([FBConfiguration includeNonModalElements]),
-    FB_SETTING_ACCEPT_ALERT_BUTTON_SELECTOR: FBConfiguration.acceptAlertButtonSelector ?: @"",
-    FB_SETTING_DISMISS_ALERT_BUTTON_SELECTOR: FBConfiguration.dismissAlertButtonSelector ?: @"",
-    FB_SETTING_MAX_TYPING_FREQUENCY: @([FBConfiguration maxTypingFrequency]),
-    FB_SETTING_RESPECT_SYSTEM_ALERTS: @([FBConfiguration shouldRespectSystemAlerts]),
-    FB_SETTING_USE_CLEAR_TEXT_SHORTCUT: @([FBConfiguration useClearTextShortcut]),
-    FB_SETTING_INCLUDE_HITTABLE_IN_PAGE_SOURCE: @([FBConfiguration includeHittableInPageSource]),
-    FB_SETTING_INCLUDE_NATIVE_FRAME_IN_PAGE_SOURCE: @([FBConfiguration includeNativeFrameInPageSource]),
-    FB_SETTING_INCLUDE_MIN_MAX_VALUE_IN_PAGE_SOURCE: @([FBConfiguration includeMinMaxValueInPageSource]),
-    FB_SETTING_LIMIT_XPATH_CONTEXT_SCOPE: @([FBConfiguration limitXpathContextScope]),
-#if !TARGET_OS_TV
-    FB_SETTING_SCREENSHOT_ORIENTATION: [FBConfiguration humanReadableScreenshotOrientation] ?: @"",
-#endif
-  } mutableCopy];
-
-  // Safe access to session-specific settings
-  settings[FB_SETTING_DEFAULT_ACTIVE_APPLICATION] = session ? (session.defaultActiveApplication ?: @"") : @"";
-  settings[FB_SETTING_DEFAULT_ALERT_ACTION] = session ? (session.defaultAlertAction ?: @"") : @"";
-
-  if ([XCUIElement fb_supportsNonModalElementsInclusion]) {
-    settings[FB_SETTING_INCLUDE_NON_MODAL_ELEMENTS] = @([FBConfiguration includeNonModalElements]);
-  }
-
-  if (FBActiveAppDetectionPoint.sharedInstance.stringCoordinates) {
-    settings[FB_SETTING_ACTIVE_APP_DETECTION_POINT] = FBActiveAppDetectionPoint.sharedInstance.stringCoordinates;
-  }
-
-  return FBResponseWithObject(settings);
-}
-
-/**
- * No-session version of FBSessionCommands.handleSetSettings
- *
- * This method is based on FBSessionCommands.handleSetSettings (line 548) but designed
- * to work without requiring an active WebDriver session.
- *
- * Key differences from the original session-required version:
- * 1. Safe access to session-specific settings:
- *    - defaultActiveApplication: Only set if session exists
- *    - defaultAlertAction: Only set if session exists and value is valid string
- * 2. Session-dependent feature handling:
- *    - includeNonModalElements: Only set if feature is supported by iOS SDK
- *    - activeAppDetectionPoint: Set globally, works without session
- * 3. Excludes session-dependent features:
- *    - autoClickAlertSelector: Requires session for alerts monitor enable/disable
- * 4. Uses different null checking pattern:
- *    - Original: nil != [settings objectForKey:key]
- *    - This version: settings[key] (more concise, same functionality)
- * 5. Returns handleGetSettingsGads instead of handleGetSettings
- *
- * When updating: Compare with FBSessionCommands.handleSetSettings and sync any new
- * settings, ensuring session-safe access patterns and proper null checks are maintained.
- * Pay attention to settings that require session state or iOS SDK feature checks.
- */
-+ (id<FBResponsePayload>)handleSetSettingsGads:(FBRouteRequest *)request
-{
-  NSDictionary* settings = request.arguments[@"settings"];
-  FBSession *session = request.session;
-
-  if (settings[FB_SETTING_USE_COMPACT_RESPONSES]) {
-    [FBConfiguration setShouldUseCompactResponses:[settings[FB_SETTING_USE_COMPACT_RESPONSES] boolValue]];
-  }
-  if (settings[FB_SETTING_ELEMENT_RESPONSE_ATTRIBUTES]) {
-    [FBConfiguration setElementResponseAttributes:(NSString *)settings[FB_SETTING_ELEMENT_RESPONSE_ATTRIBUTES]];
-  }
-  if (settings[FB_SETTING_MJPEG_SERVER_SCREENSHOT_QUALITY]) {
-    [FBConfiguration setMjpegServerScreenshotQuality:[settings[FB_SETTING_MJPEG_SERVER_SCREENSHOT_QUALITY] unsignedIntegerValue]];
-  }
-  if (settings[FB_SETTING_MJPEG_SERVER_FRAMERATE]) {
-    [FBConfiguration setMjpegServerFramerate:[settings[FB_SETTING_MJPEG_SERVER_FRAMERATE] unsignedIntegerValue]];
-  }
-  if (settings[FB_SETTING_SCREENSHOT_QUALITY]) {
-    [FBConfiguration setScreenshotQuality:[settings[FB_SETTING_SCREENSHOT_QUALITY] unsignedIntegerValue]];
-  }
-  if (settings[FB_SETTING_MJPEG_SCALING_FACTOR]) {
-    [FBConfiguration setMjpegScalingFactor:[settings[FB_SETTING_MJPEG_SCALING_FACTOR] floatValue]];
-  }
-  if (settings[FB_SETTING_MJPEG_FIX_ORIENTATION]) {
-    [FBConfiguration setMjpegShouldFixOrientation:[settings[FB_SETTING_MJPEG_FIX_ORIENTATION] boolValue]];
-  }
-  if (settings[FB_SETTING_KEYBOARD_AUTOCORRECTION]) {
-    [FBConfiguration setKeyboardAutocorrection:[settings[FB_SETTING_KEYBOARD_AUTOCORRECTION] boolValue]];
-  }
-  if (settings[FB_SETTING_KEYBOARD_PREDICTION]) {
-    [FBConfiguration setKeyboardPrediction:[settings[FB_SETTING_KEYBOARD_PREDICTION] boolValue]];
-  }
-  if (settings[FB_SETTING_RESPECT_SYSTEM_ALERTS]) {
-    [FBConfiguration setShouldRespectSystemAlerts:[settings[FB_SETTING_RESPECT_SYSTEM_ALERTS] boolValue]];
-  }
-  if (settings[FB_SETTING_SNAPSHOT_MAX_DEPTH]) {
-    [FBConfiguration setSnapshotMaxDepth:[settings[FB_SETTING_SNAPSHOT_MAX_DEPTH] intValue]];
-  }
-  if (settings[FB_SETTING_USE_FIRST_MATCH]) {
-    [FBConfiguration setUseFirstMatch:[settings[FB_SETTING_USE_FIRST_MATCH] boolValue]];
-  }
-  if (settings[FB_SETTING_BOUND_ELEMENTS_BY_INDEX]) {
-    [FBConfiguration setBoundElementsByIndex:[settings[FB_SETTING_BOUND_ELEMENTS_BY_INDEX] boolValue]];
-  }
-  if (settings[FB_SETTING_REDUCE_MOTION]) {
-    [FBConfiguration setReduceMotionEnabled:[settings[FB_SETTING_REDUCE_MOTION] boolValue]];
-  }
-  if (settings[FB_SETTING_DEFAULT_ACTIVE_APPLICATION] && session) {
-    session.defaultActiveApplication = (NSString *)settings[FB_SETTING_DEFAULT_ACTIVE_APPLICATION];
-  }
-  if (settings[FB_SETTING_ACTIVE_APP_DETECTION_POINT]) {
-    NSError *error;
-    if (![FBActiveAppDetectionPoint.sharedInstance setCoordinatesWithString:(NSString *)settings[FB_SETTING_ACTIVE_APP_DETECTION_POINT]
-                                                                      error:&error]) {
-      return FBResponseWithStatus([FBCommandStatus invalidArgumentErrorWithMessage:error.localizedDescription traceback:nil]);
-    }
-  }
-  if (settings[FB_SETTING_INCLUDE_NON_MODAL_ELEMENTS] && [XCUIElement fb_supportsNonModalElementsInclusion]) {
-    [FBConfiguration setIncludeNonModalElements:[settings[FB_SETTING_INCLUDE_NON_MODAL_ELEMENTS] boolValue]];
-  }
-  if (settings[FB_SETTING_ACCEPT_ALERT_BUTTON_SELECTOR]) {
-    [FBConfiguration setAcceptAlertButtonSelector:(NSString *)settings[FB_SETTING_ACCEPT_ALERT_BUTTON_SELECTOR]];
-  }
-  if (settings[FB_SETTING_DISMISS_ALERT_BUTTON_SELECTOR]) {
-    [FBConfiguration setDismissAlertButtonSelector:(NSString *)settings[FB_SETTING_DISMISS_ALERT_BUTTON_SELECTOR]];
-  }
-  if (settings[FB_SETTING_WAIT_FOR_IDLE_TIMEOUT]) {
-    [FBConfiguration setWaitForIdleTimeout:[settings[FB_SETTING_WAIT_FOR_IDLE_TIMEOUT] doubleValue]];
-  }
-  if (settings[FB_SETTING_ANIMATION_COOL_OFF_TIMEOUT]) {
-    [FBConfiguration setAnimationCoolOffTimeout:[settings[FB_SETTING_ANIMATION_COOL_OFF_TIMEOUT] doubleValue]];
-  }
-  if ([settings[FB_SETTING_DEFAULT_ALERT_ACTION] isKindOfClass:NSString.class] && session) {
-    session.defaultAlertAction = [settings[FB_SETTING_DEFAULT_ALERT_ACTION] lowercaseString];
-  }
-  if (settings[FB_SETTING_MAX_TYPING_FREQUENCY]) {
-    [FBConfiguration setMaxTypingFrequency:[settings[FB_SETTING_MAX_TYPING_FREQUENCY] unsignedIntegerValue]];
-  }
-  if (settings[FB_SETTING_USE_CLEAR_TEXT_SHORTCUT]) {
-    [FBConfiguration setUseClearTextShortcut:[settings[FB_SETTING_USE_CLEAR_TEXT_SHORTCUT] boolValue]];
-  }
-  if (settings[FB_SETTING_INCLUDE_HITTABLE_IN_PAGE_SOURCE]) {
-    [FBConfiguration setIncludeHittableInPageSource:[settings[FB_SETTING_INCLUDE_HITTABLE_IN_PAGE_SOURCE] boolValue]];
-  }
-  if (settings[FB_SETTING_INCLUDE_NATIVE_FRAME_IN_PAGE_SOURCE]) {
-    [FBConfiguration setIncludeNativeFrameInPageSource:[settings[FB_SETTING_INCLUDE_NATIVE_FRAME_IN_PAGE_SOURCE] boolValue]];
-  }
-  if (settings[FB_SETTING_INCLUDE_MIN_MAX_VALUE_IN_PAGE_SOURCE]) {
-    [FBConfiguration setIncludeMinMaxValueInPageSource:[settings[FB_SETTING_INCLUDE_MIN_MAX_VALUE_IN_PAGE_SOURCE] boolValue]];
-  }
-  if (settings[FB_SETTING_LIMIT_XPATH_CONTEXT_SCOPE]) {
-    [FBConfiguration setLimitXpathContextScope:[settings[FB_SETTING_LIMIT_XPATH_CONTEXT_SCOPE] boolValue]];
-  }
-
-#if !TARGET_OS_TV
-  if (settings[FB_SETTING_SCREENSHOT_ORIENTATION]) {
-    NSError *error;
-    if (![FBConfiguration setScreenshotOrientation:(NSString *)settings[FB_SETTING_SCREENSHOT_ORIENTATION] error:&error]) {
-      return FBResponseWithStatus([FBCommandStatus invalidArgumentErrorWithMessage:error.localizedDescription traceback:nil]);
-    }
-  }
-#endif
-
-  return [self handleGetSettingsGads:request];
 }
 
 /**
@@ -649,6 +453,103 @@
  * Note: This blocks the HTTP response until the full flow completes (several seconds).
  * Accessibility labels may change between iOS versions.
  */
+/**
+ * Returns the hardware model identifier, e.g. "iPhone11,8" for the iPhone XR.
+ * On the Simulator hw.machine is the host architecture, so the real identifier is read
+ * from the SIMULATOR_MODEL_IDENTIFIER environment variable instead.
+ */
++ (NSString *)fb_deviceModelIdentifier
+{
+  NSString *simIdentifier = NSProcessInfo.processInfo.environment[@"SIMULATOR_MODEL_IDENTIFIER"];
+  if (simIdentifier.length > 0) {
+    return simIdentifier;
+  }
+  size_t size = 0;
+  if (sysctlbyname("hw.machine", NULL, &size, NULL, 0) != 0 || size == 0) {
+    return @"";
+  }
+  char *machine = malloc(size);
+  if (NULL == machine) {
+    return @"";
+  }
+  NSString *identifier = @"";
+  if (sysctlbyname("hw.machine", machine, &size, NULL, 0) == 0) {
+    identifier = [NSString stringWithUTF8String:machine] ?: @"";
+  }
+  free(machine);
+  return identifier;
+}
+
+/**
+ * Whether the current device has a hardware Home button (so Control Center is opened by
+ * swiping up from the bottom, and pressButton:Home works).
+ *
+ * iPhone X (iPhone10,3 / iPhone10,6) was the first Face ID phone, but it shares generation
+ * 10 with the Home-button iPhone 8/8+ (iPhone10,1/10,2/10,4/10,5). From generation 11 on,
+ * the only Home-button phones are the SE models (iPhone SE 2 = iPhone12,8, SE 3 = iPhone14,6).
+ * iPads and unknown models default to NO (Face ID gesture), which also opens Control Center
+ * on modern iPads.
+ */
++ (BOOL)fb_isHomeButtonDevice
+{
+  NSString *model = [self fb_deviceModelIdentifier];
+  if (![model hasPrefix:@"iPhone"]) {
+    return NO;
+  }
+
+  NSScanner *scanner = [NSScanner scannerWithString:[model substringFromIndex:@"iPhone".length]];
+  NSInteger major = 0;
+  NSInteger minor = 0;
+  if (![scanner scanInteger:&major]) {
+    return NO;
+  }
+  [scanner scanString:@"," intoString:NULL];
+  [scanner scanInteger:&minor];
+
+  if (major < 10) {
+    return YES;
+  }
+  if (major == 10) {
+    return minor == 1 || minor == 2 || minor == 4 || minor == 5;
+  }
+  // Generation 11+: Face ID everywhere except the Home-button SE models.
+  return (major == 12 && minor == 8) || (major == 14 && minor == 6);
+}
+
+/**
+ * Performs one Control Center opening gesture.
+ *
+ * Device type (Face ID vs Home button) cannot be reliably detected from the WDA runner's
+ * own window safe-area, so instead of detecting we try both gestures and let the caller
+ * verify which one actually revealed Control Center.
+ *
+ * faceIDGesture YES: pull down from the extreme top-right edge (Face ID devices). The
+ *               touch must start at the very top edge (y ~ 0) and travel well into the
+ *               screen for the system to recognise the pull.
+ *               NO: swipe up from the bottom edge (Home button devices).
+ */
++ (void)fb_openControlCenterWithFaceIDGesture:(BOOL)faceIDGesture
+{
+  // Use only normalized coordinates so we don't read activeApp.frame, which would force
+  // an accessibility snapshot on every attempt.
+  XCUIApplication *activeApp = XCUIApplication.fb_activeApplication;
+
+  if (faceIDGesture) {
+    // Pull down ~35% from the extreme top-right edge.
+    XCUICoordinate *start = [activeApp coordinateWithNormalizedOffset:CGVectorMake(0.95, 0.0)];
+    XCUICoordinate *end = [activeApp coordinateWithNormalizedOffset:CGVectorMake(0.95, 0.35)];
+    [start pressForDuration:0.05 thenDragToCoordinate:end];
+  } else {
+    // Swipe up ~35% from the bottom edge.
+    XCUICoordinate *start = [activeApp coordinateWithNormalizedOffset:CGVectorMake(0.5, 1.0)];
+    XCUICoordinate *end = [activeApp coordinateWithNormalizedOffset:CGVectorMake(0.5, 0.65)];
+    [start pressForDuration:0.05 thenDragToCoordinate:end];
+  }
+
+  // Let the Control Center animation settle.
+  [NSThread sleepForTimeInterval:0.5];
+}
+
 + (id<FBResponsePayload>)handleStartBroadcast:(FBRouteRequest *)request
 {
   NSString *appName = (NSString *)request.arguments[@"appName"];
@@ -661,48 +562,39 @@
 
   XCUIApplication *springboard = [[XCUIApplication alloc] initWithBundleIdentifier:@"com.apple.springboard"];
 
-  // Step 0: Press Home twice to dismiss any open UI (Control Center, alerts, etc.)
-  [[XCUIDevice sharedDevice] pressButton:XCUIDeviceButtonHome];
-  [NSThread sleepForTimeInterval:0.5];
-  [[XCUIDevice sharedDevice] pressButton:XCUIDeviceButtonHome];
-  [NSThread sleepForTimeInterval:1.0];
-
-  XCUIApplication *activeApp = XCUIApplication.fb_activeApplication;
-
-  // Step 1: Detect device type and open Control Center
-  // Face ID devices have bottom safe area > 0 (home indicator area)
-  BOOL isFaceID = NO;
-  UIWindow *window = UIApplication.sharedApplication.windows.firstObject;
-  if (window && window.safeAreaInsets.bottom > 0) {
-    isFaceID = YES;
-  }
-
-  if (isFaceID) {
-    // Face ID: short swipe down from top-right corner
-    // Keep the swipe short to avoid overshooting into Control Center content (e.g. AirPlay)
-    XCUICoordinate *start = [activeApp coordinateWithNormalizedOffset:CGVectorMake(0.9, 0.01)];
-    XCUICoordinate *end = [activeApp coordinateWithNormalizedOffset:CGVectorMake(0.9, 0.2)];
-    [start pressForDuration:0.1 thenDragToCoordinate:end];
-  } else {
-    // Home Button: swipe up from bottom center
-    XCUICoordinate *start = [activeApp coordinateWithNormalizedOffset:CGVectorMake(0.5, 0.99)];
-    XCUICoordinate *end = [activeApp coordinateWithNormalizedOffset:CGVectorMake(0.5, 0.7)];
-    [start pressForDuration:0.1 thenDragToCoordinate:end];
-  }
-
-  // Let the Control Center animation settle
+  // Step 0: Go to the home screen to dismiss any open UI (Control Center, picker, etc.).
+  // Activating SpringBoard works on all devices, unlike pressButton:Home which is a no-op
+  // on Face ID devices (no hardware Home button).
+  [[XCUIDevice sharedDevice] fb_goToHomescreenWithError:nil];
   [NSThread sleepForTimeInterval:0.5];
 
-  // Step 2: Find Screen Recording button in Control Center
+  // Step 1: Open Control Center, retrying and verifying that the Screen Recording
+  // button actually appeared. A mis-detected device type or a swipe that the system
+  // reads as App Switcher/Home can otherwise silently fail the whole flow.
   XCUIElement *screenRecBtn = springboard.buttons[screenRecordingName];
-  if (![screenRecBtn waitForExistenceWithTimeout:timeout]) {
+  BOOL opened = NO;
+  // Pick the first gesture from the device model (reliable), then keep the other as a
+  // fallback, alternating until the Screen Recording button appears.
+  BOOL faceIDFirst = ![self fb_isHomeButtonDevice];
+  BOOL gestureSequence[] = { faceIDFirst, !faceIDFirst, faceIDFirst, !faceIDFirst };
+  NSInteger maxAttempts = sizeof(gestureSequence) / sizeof(gestureSequence[0]);
+  for (NSInteger attempt = 0; attempt < maxAttempts && !opened; attempt++) {
+    [self fb_openControlCenterWithFaceIDGesture:gestureSequence[attempt]];
+    opened = [screenRecBtn waitForExistenceWithTimeout:timeout];
+    if (!opened) {
+      // A wrong swipe may have opened the App Switcher or gone Home; reset and retry.
+      [[XCUIDevice sharedDevice] fb_goToHomescreenWithError:nil];
+      [NSThread sleepForTimeInterval:0.5];
+    }
+  }
+  if (!opened) {
     return FBResponseWithStatus([FBCommandStatus noSuchElementErrorWithMessage:
       [NSString stringWithFormat:@"Could not find '%@' button in Control Center within %.0fs", screenRecordingName, timeout]
       traceback:nil]);
   }
 
   // Step 3: Long press to open the broadcast picker
-  [screenRecBtn pressForDuration:1.5];
+  [screenRecBtn pressForDuration:1.0];
 
   // Step 4: Find and tap the target app in the broadcast picker
   // Broadcast apps appear as Button elements in the picker
@@ -714,22 +606,23 @@
   }
   [appElement tap];
 
-  // Step 5: Tap Start Broadcast
-  XCUIElement *startBtn = springboard.buttons[@"Start Broadcast"];
+  // Step 5: Tap the start button, which is labelled "Start Broadcast" or "Start Sharing"
+  // depending on the iOS version.
+  NSArray<NSString *> *startLabels = @[@"Start Broadcast", @"Start Sharing"];
+  NSPredicate *startPredicate = [NSPredicate predicateWithFormat:@"label IN %@", startLabels];
+  XCUIElement *startBtn = [springboard.buttons matchingPredicate:startPredicate].firstMatch;
   if (![startBtn waitForExistenceWithTimeout:timeout]) {
     return FBResponseWithStatus([FBCommandStatus noSuchElementErrorWithMessage:
-      @"Could not find 'Start Broadcast' button" traceback:nil]);
+      [NSString stringWithFormat:@"Could not find a start button (%@)", [startLabels componentsJoinedByString:@" / "]]
+      traceback:nil]);
   }
   [startBtn tap];
 
-  // Wait for the 3-second countdown before broadcast actually starts
-  [NSThread sleepForTimeInterval:3.0];
-
-  // Dismiss the broadcast menus by pressing Home twice
-  [[XCUIDevice sharedDevice] pressButton:XCUIDeviceButtonHome];
-  [NSThread sleepForTimeInterval:0.5];
-  [[XCUIDevice sharedDevice] pressButton:XCUIDeviceButtonHome];
-  [NSThread sleepForTimeInterval:0.5];
+  // No need to wait out the 3-2-1 countdown: ReplayKit starts the broadcast on its own
+  // once tapped. Activate SpringBoard to return to a known state from whatever app is
+  // foreground. (Works on all devices, unlike pressButton:Home which is a no-op on Face
+  // ID devices.)
+  [[XCUIDevice sharedDevice] fb_goToHomescreenWithError:nil];
 
   return FBResponseWithOK();
 }

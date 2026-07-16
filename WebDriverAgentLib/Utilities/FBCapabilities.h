@@ -8,8 +8,6 @@
 
 #import <Foundation/Foundation.h>
 
-/** Whether to use alternative elements visivility detection method */
-extern NSString* const FB_CAP_USE_TEST_MANAGER_FOR_VISIBLITY_DETECTION;
 /** Set the maximum amount of characters that could be typed within a minute (60 by default) */
 extern NSString* const FB_CAP_MAX_TYPING_FREQUENCY;
 /** this setting was needed for some legacy stuff */
@@ -26,7 +24,7 @@ extern NSString* const FB_CAP_BUNDLE_ID;
  Usually an URL used as initial link to run Mobile Safari, but could be any other deep link.
  This might also work together with `FB_CAP_BUNLDE_ID`, which tells XCTest to open
  the given deep link in the particular app.
- Only works since iOS 16.4
+ Only works since iOS 16.4 runtime
  */
 extern NSString* const FB_CAP_INITIAL_URL;
 /** Whether to enforrce (re)start of the application under test on session startup */

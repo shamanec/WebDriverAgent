@@ -26,6 +26,7 @@
 static NSUInteger const DefaultStartingPort = 8100;
 static NSUInteger const DefaultMjpegServerPort = 9100;
 static NSUInteger const DefaultPortRange = 100;
+static UInt64 const DefaultHttpRequestBodySizeLimit = 1024ull * 1024ull * 1024ull;
 
 static char const *const controllerPrefBundlePath = "/System/Library/PrivateFrameworks/TextInput.framework/TextInput";
 static NSString *const controllerClassName = @"TIPreferencesController";
@@ -33,7 +34,6 @@ static NSString *const FBKeyboardAutocorrectionKey = @"KeyboardAutocorrection";
 static NSString *const FBKeyboardPredictionKey = @"KeyboardPrediction";
 static NSString *const axSettingsClassName = @"AXSettings";
 
-static BOOL FBShouldUseTestManagerForVisibilityDetection = NO;
 static BOOL FBShouldUseSingletonTestManager = YES;
 static BOOL FBShouldRespectSystemAlerts = NO;
 
@@ -48,7 +48,6 @@ static NSNumber* FBMaxTypingFrequency;
 static NSUInteger FBScreenshotQuality;
 static BOOL FBShouldUseFirstMatch;
 static BOOL FBShouldBoundElementsByIndex;
-static BOOL FBIncludeNonModalElements;
 static NSString *FBAcceptAlertButtonSelector;
 static NSString *FBDismissAlertButtonSelector;
 static NSString *FBAutoClickAlertSelector;
@@ -63,6 +62,7 @@ static UIInterfaceOrientation FBScreenshotOrientation;
 #endif
 static BOOL FBShouldIncludeHittableInPageSource = NO;
 static BOOL FBShouldIncludeNativeFrameInPageSource = NO;
+static BOOL FBShouldIncludeNativeAccessibilityElementInPageSource = NO;
 static BOOL FBShouldIncludeMinMaxValueInPageSource = NO;
 static BOOL FBShouldIncludeCustomActionsInPageSource = NO;
 static BOOL FBShouldEnforceCustomSnapshots = NO;
@@ -165,6 +165,19 @@ static BOOL FBShouldEnforceCustomSnapshots = NO;
   return DefaultMjpegServerPort;
 }
 
++ (UInt64)httpRequestBodySizeLimit
+{
+  NSString *limit = NSProcessInfo.processInfo.environment[@"MAX_HTTP_REQUEST_BODY_SIZE"];
+  if (limit.length > 0) {
+    long long parsedLimit = [limit longLongValue];
+    if (parsedLimit > 0) {
+      return (UInt64)parsedLimit;
+    }
+  }
+
+  return DefaultHttpRequestBodySizeLimit;
+}
+
 + (CGFloat)mjpegScalingFactor
 {
   return FBMjpegScalingFactor;
@@ -186,16 +199,6 @@ static BOOL FBShouldEnforceCustomSnapshots = NO;
 + (BOOL)verboseLoggingEnabled
 {
   return [NSProcessInfo.processInfo.environment[@"VERBOSE_LOGGING"] boolValue];
-}
-
-+ (void)setShouldUseTestManagerForVisibilityDetection:(BOOL)value
-{
-  FBShouldUseTestManagerForVisibilityDetection = value;
-}
-
-+ (BOOL)shouldUseTestManagerForVisibilityDetection
-{
-  return FBShouldUseTestManagerForVisibilityDetection;
 }
 
 + (void)setShouldUseCompactResponses:(BOOL)value
@@ -426,16 +429,6 @@ static BOOL FBShouldEnforceCustomSnapshots = NO;
   return FBShouldBoundElementsByIndex;
 }
 
-+ (void)setIncludeNonModalElements:(BOOL)isEnabled
-{
-  FBIncludeNonModalElements = isEnabled;
-}
-
-+ (BOOL)includeNonModalElements
-{
-  return FBIncludeNonModalElements;
-}
-
 + (void)setAcceptAlertButtonSelector:(NSString *)classChainSelector
 {
   FBAcceptAlertButtonSelector = classChainSelector;
@@ -542,9 +535,6 @@ static BOOL FBShouldEnforceCustomSnapshots = NO;
   FBScreenshotQuality = 3;
   FBShouldUseFirstMatch = NO;
   FBShouldBoundElementsByIndex = NO;
-  // This is diabled by default because enabling it prevents the accessbility snapshot to be taken
-  // (it always errors with kxIllegalArgument error)
-  FBIncludeNonModalElements = NO;
   FBAcceptAlertButtonSelector = @"";
   FBDismissAlertButtonSelector = @"";
   FBAutoClickAlertSelector = @"";
@@ -688,6 +678,16 @@ static BOOL FBShouldEnforceCustomSnapshots = NO;
 + (BOOL)includeNativeFrameInPageSource
 {
   return FBShouldIncludeNativeFrameInPageSource;
+}
+
++ (void)setIncludeNativeAccessibilityElementInPageSource:(BOOL)enabled
+{
+  FBShouldIncludeNativeAccessibilityElementInPageSource = enabled;
+}
+
++ (BOOL)includeNativeAccessibilityElementInPageSource
+{
+  return FBShouldIncludeNativeAccessibilityElementInPageSource;
 }
 
 + (void)setIncludeMinMaxValueInPageSource:(BOOL)enabled
