@@ -7,8 +7,10 @@
  */
 
 #import <XCTest/XCTest.h>
+#import <WebDriverAgentLib/FBXCElementSnapshot.h>
 
 #import "XCUIElementDouble.h"
+#import "FBXCElementSnapshotDouble.h"
 #import "FBTVNavigationTracker.h"
 #import "FBTVNavigationTracker-Private.h"
 
@@ -81,6 +83,52 @@
 
   FBTVDirection direction = [tracker verticalDirectionWithItem:item andDelta:DBL_EPSILON];
   XCTAssertEqual(FBTVDirectionNone, direction);
+}
+
+#pragma mark - directionTowardsTargetFromFocusedElementSnapshot:
+
+- (FBTVNavigationTracker *)trackerWithTargetFrame:(CGRect)targetFrame
+{
+  XCUIElementDouble *targetElement = XCUIElementDouble.new;
+  targetElement.wdFrame = targetFrame;
+  return [FBTVNavigationTracker trackerWithTargetElement:(XCUIElement *)targetElement];
+}
+
+- (void)testDirectionTowardsTargetFromFocusedElementSnapshotShouldPointRight
+{
+  // Target sits to the right of the currently focused element.
+  FBTVNavigationTracker *tracker = [self trackerWithTargetFrame:CGRectMake(100, 0, 0, 0)];
+  FBXCElementSnapshotDouble *focusedSnapshot = [FBXCElementSnapshotDouble snapshotWithElementId:1 frame:CGRectMake(0, 0, 0, 0) hasFocus:YES];
+
+  FBTVDirection direction = [tracker directionTowardsTargetFromFocusedElementSnapshot:(id<FBXCElementSnapshot>)focusedSnapshot];
+
+  XCTAssertEqual(FBTVDirectionRight, direction);
+}
+
+- (void)testDirectionTowardsTargetFromFocusedElementSnapshotShouldPointUp
+{
+  // Target sits above the currently focused element.
+  FBTVNavigationTracker *tracker = [self trackerWithTargetFrame:CGRectMake(0, -100, 0, 0)];
+  FBXCElementSnapshotDouble *focusedSnapshot = [FBXCElementSnapshotDouble snapshotWithElementId:1 frame:CGRectMake(0, 0, 0, 0) hasFocus:YES];
+
+  FBTVDirection direction = [tracker directionTowardsTargetFromFocusedElementSnapshot:(id<FBXCElementSnapshot>)focusedSnapshot];
+
+  XCTAssertEqual(FBTVDirectionUp, direction);
+}
+
+- (void)testDirectionTowardsTargetFromFocusedElementSnapshotShouldNotSuggestTheSameDirectionTwiceInARow
+{
+  // Same (unmoved) focused snapshot polled twice: the horizontal move gets
+  // suggested once, then withheld on the next call, per the "don't repeat a
+  // direction" bookkeeping in -directionWithItem:delta:positiveDirection:negativeDirection:.
+  FBTVNavigationTracker *tracker = [self trackerWithTargetFrame:CGRectMake(100, 0, 0, 0)];
+  FBXCElementSnapshotDouble *focusedSnapshot = [FBXCElementSnapshotDouble snapshotWithElementId:1 frame:CGRectMake(0, 0, 0, 0) hasFocus:YES];
+
+  FBTVDirection firstDirection = [tracker directionTowardsTargetFromFocusedElementSnapshot:(id<FBXCElementSnapshot>)focusedSnapshot];
+  XCTAssertEqual(FBTVDirectionRight, firstDirection);
+
+  FBTVDirection secondDirection = [tracker directionTowardsTargetFromFocusedElementSnapshot:(id<FBXCElementSnapshot>)focusedSnapshot];
+  XCTAssertEqual(FBTVDirectionNone, secondDirection);
 }
 
 @end

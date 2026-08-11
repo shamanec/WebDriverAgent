@@ -4,18 +4,11 @@
   "compilerOptions": {
     "esModuleInterop": true,
     "outDir": "build",
-    "types": ["node", "mocha"],
+    "types": ["node"],
     "checkJs": true,
-    "strict": true
+    "strict": true,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext"
   },
-  "ts-node": {
-    "transpileOnly": true,
-    "compilerOptions": {
-      "rootDir": "."
-    }
-  },
-  "include": [
-    "lib",
-    "test"
-  ]
+  "include": ["lib", "test"]
 }
