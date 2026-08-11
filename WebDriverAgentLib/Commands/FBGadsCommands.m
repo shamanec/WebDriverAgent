@@ -24,12 +24,163 @@
 #import "FBActiveAppDetectionPoint.h"
 #import "FBXCodeCompatibility.h"
 #import "FBCommandStatus.h"
+#import "FBElementTypeTransformer.h"
 #import "FBRoute.h"
 #import "FBResponsePayload.h"
 #import "FBRouteRequest.h"
 #import "FBScreenshot.h"
+#import "FBXCAccessibilityElement.h"
+#import "FBXCAXClientProxy.h"
+#import "FBXCElementSnapshot.h"
+#import "RouteResponse.h"
 #import "XCUIScreen.h"
 #import "FBImageProcessor.h"
+
+
+/**
+ * Response payload that serializes to compact (non-pretty-printed) JSON.
+ *
+ * The stock FBResponseJSONPayload always serializes with NSJSONWritingPrettyPrinted,
+ * which roughly doubles the wire size of a large element tree. For /source-fast the
+ * payload size is the whole point, so this payload owns its serialization instead.
+ */
+@interface FBGadsCompactJSONPayload : NSObject <FBResponsePayload>
+
+- (instancetype)initWithObject:(NSDictionary *)object;
+
+@end
+
+@implementation FBGadsCompactJSONPayload {
+  NSDictionary *_object;
+}
+
+- (instancetype)initWithObject:(NSDictionary *)object
+{
+  if ((self = [super init])) {
+    _object = object;
+  }
+  return self;
+}
+
+- (void)dispatchWithResponse:(RouteResponse *)response
+{
+  NSError *error;
+  NSData *jsonData = [NSJSONSerialization dataWithJSONObject:_object options:0 error:&error];
+  if (nil == jsonData) {
+    NSString *fallback = [NSString stringWithFormat:@"{\"value\":null,\"error\":\"%@\"}",
+                          error.localizedDescription ?: @"JSON serialization failed"];
+    jsonData = (NSData *)[fallback dataUsingEncoding:NSUTF8StringEncoding];
+  }
+  [response setHeader:@"Content-Type" value:@"application/json;charset=UTF-8"];
+  [response setStatusCode:200];
+  [response respondWithData:jsonData];
+}
+
+@end
+
+
+/**
+ * The minimal accessibility attribute set fetched per node for /source-fast.
+ *
+ * The regular /source snapshot requests the full default attribute set for every
+ * element in the hierarchy; this list keeps only what a remote-control client needs
+ * to render and target elements. The names are passed through XCElementSnapshot's
+ * sanitizer so any attributes the snapshot machinery itself requires are retained.
+ */
+static NSArray<NSString *> *FBGadsFastSourceAttributes(void)
+{
+  static NSArray<NSString *> *attributes;
+  static dispatch_once_t onceToken;
+  dispatch_once(&onceToken, ^{
+    // The element hierarchy is produced by the request parameters (maxDepth /
+    // traverseFromParentsToChildren), NOT by an attribute. Do not add
+    // XC_kAXXCAttributeChildren here: array-valued attributes break NSSecureCoding
+    // of the XPC reply (XCElementSnapshot only decodes value/number/string/dict
+    // attribute values) and the whole snapshot response gets dropped.
+    NSArray<NSString *> *minimal = @[
+      @"XC_kAXXCAttributeElementType",
+      @"XC_kAXXCAttributeIdentifier",
+      @"XC_kAXXCAttributeLabel",
+      @"XC_kAXXCAttributeValue",
+      @"XC_kAXXCAttributeFrame",
+    ];
+    Class snapshotClass = NSClassFromString(@"XCElementSnapshot");
+    attributes = [snapshotClass respondsToSelector:@selector(sanitizedElementSnapshotHierarchyAttributesForAttributes:isMacOS:)]
+      ? [snapshotClass sanitizedElementSnapshotHierarchyAttributesForAttributes:minimal isMacOS:NO]
+      : minimal;
+  });
+  return attributes;
+}
+
+// NSJSONSerialization throws on NaN/Inf, which corrupted AX frames can contain
+static inline double FBGadsFiniteOrZero(CGFloat value)
+{
+  return isfinite(value) ? (double)value : 0.0;
+}
+
+/**
+ * Converts a snapshot subtree into a lean dictionary, bottom-up.
+ *
+ * When pruning is enabled, subtrees that are entirely off-screen are culled: children
+ * are processed first, and a node is kept if any descendant survived OR its own frame
+ * intersects the screen rectangle. The bottom-up order matters — recycled list
+ * containers (UITableView/UICollectionView cells) report stale off-screen frames
+ * while the rows they render have correct on-screen frames, so a top-down frame test
+ * would drop visible content. Empty/invalid frames never intersect, which means
+ * zero-frame containers only survive when they host kept descendants.
+ *
+ * Returns nil when the whole subtree is off-screen. Child order matches /source.
+ */
+static NSDictionary * _Nullable FBGadsLeanTreeForSnapshot(id<FBXCElementSnapshot> snapshot,
+                                                          BOOL pruneOffscreen,
+                                                          CGRect screenRect)
+{
+  NSMutableArray<NSDictionary *> *keptChildren = [NSMutableArray array];
+  for (id<FBXCElementSnapshot> child in snapshot.children) {
+    @autoreleasepool {
+      NSDictionary *childInfo = FBGadsLeanTreeForSnapshot(child, pruneOffscreen, screenRect);
+      if (nil != childInfo) {
+        [keptChildren addObject:childInfo];
+      }
+    }
+  }
+
+  CGRect frame = snapshot.frame;
+  BOOL isOnScreen = !CGRectIsEmpty(frame) && CGRectIntersectsRect(frame, screenRect);
+  if (pruneOffscreen && !isOnScreen && 0 == keptChildren.count) {
+    return nil;
+  }
+
+  NSMutableDictionary *info = [NSMutableDictionary dictionary];
+  info[@"type"] = [FBElementTypeTransformer shortStringWithElementType:snapshot.elementType];
+  info[@"rect"] = @{
+    @"x": @(FBGadsFiniteOrZero(CGRectGetMinX(frame))),
+    @"y": @(FBGadsFiniteOrZero(CGRectGetMinY(frame))),
+    @"width": @(FBGadsFiniteOrZero(CGRectGetWidth(frame))),
+    @"height": @(FBGadsFiniteOrZero(CGRectGetHeight(frame))),
+  };
+  // Empty strings are omitted entirely instead of serializing "" or null
+  if (snapshot.identifier.length > 0) {
+    info[@"name"] = snapshot.identifier;
+  }
+  if (snapshot.label.length > 0) {
+    info[@"label"] = snapshot.label;
+  }
+  id value = snapshot.value;
+  if ([value isKindOfClass:NSString.class]) {
+    if (((NSString *)value).length > 0) {
+      info[@"value"] = value;
+    }
+  } else if ([value isKindOfClass:NSNumber.class]) {
+    info[@"value"] = value;
+  } else if (nil != value) {
+    info[@"value"] = [value description];
+  }
+  if (keptChildren.count > 0) {
+    info[@"children"] = keptChildren;
+  }
+  return info;
+}
 
 
 @implementation FBGadsCommands
@@ -57,6 +208,7 @@
     [[FBRoute POST:@"/gads-update-stream-settings"].withoutSession respondWithTarget:self action:@selector(handleUpdateStreamSettings:)],
     [[FBRoute POST:@"/wda/appSwitcher"].withoutSession respondWithTarget:self action:@selector(handleAppSwitcher:)],
     [[FBRoute POST:@"/wda/startBroadcast"].withoutSession respondWithTarget:self action:@selector(handleStartBroadcast:)],
+    [[FBRoute GET:@"/source-fast"].withoutSession respondWithTarget:self action:@selector(handleGetFastSourceGads:)],
   ];
 }
 
@@ -625,6 +777,60 @@
   [[XCUIDevice sharedDevice] fb_goToHomescreenWithError:nil];
 
   return FBResponseWithOK();
+}
+
+/**
+ * Fast, lean element tree of the frontmost application
+ *
+ * Differences from the regular /source?format=json:
+ * - The accessibility snapshot fetches only a minimal attribute set (type, identifier,
+ *   label, value, frame) instead of the full default set, which is where the regular
+ *   endpoint spends most of its time on large trees.
+ * - The snapshot root is the frontmost application's raw accessibility element, so no
+ *   XCUIApplication construction or wait-for-quiescence is involved.
+ * - Each node serializes only: type, rect, and (when non-empty) name, label, value,
+ *   children. No null placeholders.
+ * - Subtrees entirely off screen are culled bottom-up (a node is kept when its own
+ *   frame intersects the app frame OR any descendant was kept — see
+ *   FBGadsLeanTreeForSnapshot for why recycled list containers need the bottom-up
+ *   order). Pass ?onScreen=0 to keep the complete tree.
+ * - The response JSON is compact, not pretty-printed.
+ *
+ * Response shape: {"value": <tree>, "elapsedMs": <server-side build time>}
+ */
++ (id<FBResponsePayload>)handleGetFastSourceGads:(FBRouteRequest *)request
+{
+  BOOL onScreenOnly = nil == request.parameters[@"onScreen"] || [request.parameters[@"onScreen"] boolValue];
+  NSDate *started = [NSDate date];
+
+  id<FBXCAccessibilityElement> appElement = [FBXCAXClientProxy.sharedClient activeApplications].firstObject;
+  if (nil == appElement) {
+    return FBResponseWithStatus([FBCommandStatus unknownErrorWithMessage:@"Cannot determine the currently active application"
+                                                               traceback:nil]);
+  }
+
+  NSError *error;
+  id<FBXCElementSnapshot> snapshot = [FBXCAXClientProxy.sharedClient snapshotForElement:appElement
+                                                                             attributes:FBGadsFastSourceAttributes()
+                                                                                inDepth:YES
+                                                                                  error:&error];
+  if (nil == snapshot) {
+    return FBResponseWithStatus([FBCommandStatus unknownErrorWithMessage:
+                                 [NSString stringWithFormat:@"Cannot take an accessibility snapshot: %@", error.description]
+                                                               traceback:nil]);
+  }
+
+  // The application's own frame is the screen rectangle for pruning; if it is
+  // reported empty the pruning would drop everything, so fall back to the full tree
+  CGRect screenRect = snapshot.frame;
+  BOOL prune = onScreenOnly && !CGRectIsEmpty(screenRect);
+  NSDictionary *tree = FBGadsLeanTreeForSnapshot(snapshot, prune, screenRect);
+
+  NSNumber *elapsedMs = @((long)(-started.timeIntervalSinceNow * 1000));
+  return [[FBGadsCompactJSONPayload alloc] initWithObject:@{
+    @"value": tree ?: NSNull.null,
+    @"elapsedMs": elapsedMs,
+  }];
 }
 
 + (id <FBResponsePayload>)handleTwoFingerScroll:(FBRouteRequest *)request
