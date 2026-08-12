@@ -91,7 +91,7 @@ static NSString *const FBServerURLEndMarker = @"<-ServerURLHere";
          [runLoop runMode:NSDefaultRunLoopMode beforeDate:[NSDate distantFuture]]);
 }
 
-- (void)startHTTPServer
+- (BOOL)startHTTPServer
 {
   self.server = [[RoutingHTTPServer alloc] init];
   [self.server setRouteQueue:dispatch_get_main_queue()];
@@ -127,11 +127,17 @@ static NSString *const FBServerURLEndMarker = @"<-ServerURLHere";
 
   if (!serverStarted) {
     [FBLogger logFmt:@"Last attempt to start web server failed with error %@", [error description]];
+    id<FBWebServerDelegate> delegate = self.delegate;
+    if ([delegate respondsToSelector:@selector(webServer:didFailToStartWithError:)]) {
+      [delegate webServer:self didFailToStartWithError:(NSError * _Nonnull)error];
+      return NO;
+    }
     abort();
   }
 
   NSString *serverHost = bindingIP ?: ([XCUIDevice sharedDevice].fb_wifiIPAddress ?: @"127.0.0.1");
   [FBLogger logFmt:@"%@http://%@:%d%@", FBServerURLBeginMarker, serverHost, [self.server port], FBServerURLEndMarker];
+  return YES;
 }
 
 - (void)initScreenshotsBroadcaster

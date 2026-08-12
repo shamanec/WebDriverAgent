@@ -7,6 +7,7 @@
  */
 
 #import <Foundation/Foundation.h>
+#import "FBXCElementSnapshot.h"
 
 #if TARGET_OS_TV
 
@@ -22,6 +23,15 @@
 
 - (FBTVDirection)horizontalDirectionWithItem:(FBTVNavigationItem *)item andDelta:(CGFloat)delta;
 - (FBTVDirection)verticalDirectionWithItem:(FBTVNavigationItem *)item andDelta:(CGFloat)delta;
+- (FBTVDirection)directionWithItem:(FBTVNavigationItem *)item
+                              delta:(CGFloat)delta
+                  positiveDirection:(FBTVDirection)positiveDirection
+                  negativeDirection:(FBTVDirection)negativeDirection;
+
+// Exposed for testing: the pure direction-math core of `-pollFocusState:`,
+// parameterized on the already-resolved focused element's snapshot so tests
+// can supply a fake one instead of a live query result.
+- (FBTVDirection)directionTowardsTargetFromFocusedElementSnapshot:(id<FBXCElementSnapshot>)focusedSnapshot;
 @end
 
 #endif

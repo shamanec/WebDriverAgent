@@ -1,14 +1,9 @@
-import {fs, node as supportNode} from '@appium/support';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
-// Get current filename - works in both CommonJS and ESM
-const currentFilename =
-  typeof __filename !== 'undefined'
-    ? __filename
-    : fileURLToPath(new Function('return import.meta.url')());
+import {fs, node as supportNode} from '@appium/support';
 
-const moduleRoot = supportNode.getModuleRootSync('appium-webdriveragent', currentFilename);
+const moduleRoot = supportNode.getModuleRootSync('appium-webdriveragent', fileURLToPath(import.meta.url));
 
 if (!moduleRoot) {
   throw new Error('Cannot find the root folder of the appium-webdriveragent Node.js module');

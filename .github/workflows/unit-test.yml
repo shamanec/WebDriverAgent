@@ -15,8 +15,8 @@ jobs:
         node-version: ${{ fromJSON(needs.node_matrix.outputs.versions) }}
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v6
-    - uses: actions/setup-node@v6
+    - uses: actions/checkout@v7
+    - uses: actions/setup-node@v7
       with:
         node-version: ${{ matrix.node-version }}
     - uses: SocketDev/action@v1
@@ -27,6 +27,6 @@ jobs:
     - run: npm run lint
       name: Run linter
     - run: npm run format:check
-      name: Run Prettier check
+      name: Run format check
     - run: npm run test
       name: Run unit tests

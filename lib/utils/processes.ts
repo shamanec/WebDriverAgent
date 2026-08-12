@@ -1,6 +1,7 @@
 import {waitForCondition} from 'asyncbox';
 import {exec} from 'teen_process';
-import {log} from '../logger';
+
+import {log} from '../logger.js';
 
 /**
  * Find and terminate all processes matching the given pgrep pattern.
@@ -127,9 +128,7 @@ async function getPIDsUsingPattern(pattern: string): Promise<string[]> {
       .filter(Number.isInteger)
       .map((x) => `${x}`);
   } catch (err: any) {
-    log.debug(
-      `'pgrep ${args.join(' ')}' didn't detect any matching processes. Return code: ${err.code}`,
-    );
+    log.debug(`'pgrep ${args.join(' ')}' didn't detect any matching processes. Return code: ${err.code}`);
     return [];
   }
 }
